@@ -105,9 +105,15 @@ export class Map extends Component {
   }
 
   componentWillUnmount() {
-    // use intervalId from the state to clear the interval
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
+    const { intervalId, map } = this;
+    if (intervalId) {
+      clearInterval(intervalId);
+      this.intervalId = null;
+    }
+
+    if (map) {
+      map.remove();
+      this.map = null;
     }
   }
 
@@ -137,14 +143,35 @@ export class Map extends Component {
     this.el = el;
   };
 
-  setPopupOnClick = e => {
-    console.log('got layer click!', e);
+  removePopup = () => {
+    const { popup } = this;
+    if (popup) {
+      popup.remove();
+      this.popup = null;
+    }
+  };
+
+  handleSymbolClick = e => {
+    console.log(`got layer click with ${e.features.length} features`);
     const feature = e.features[0];
-    const { latitude, longitude, delayMin, speed } = feature.properties;
+    const {
+      journeyPatternRef,
+      vehicleRef,
+      latitude,
+      longitude,
+      delayMin,
+      speed
+    } = feature.properties;
     console.log('feature.properties', feature.properties);
-    new mapboxgl.Popup({ closeOnClick: true })
+    this.removePopup();
+    this.popup = new mapboxgl.Popup({ closeButton: false })
       .setLngLat([longitude, latitude])
-      .setHTML(`<b>${getDelayString(delayMin)}</b><br />Speed ${speed} km/h`)
+      .setHTML(
+        `<b>Line ${journeyPatternRef}</b> (${vehicleRef})
+        <br />
+        ${getDelayString(delayMin)}<br />
+        Speed ${speed} km/h`
+      )
       .addTo(this.map);
   };
 
@@ -183,11 +210,7 @@ export class Map extends Component {
       }
     });
 
-    const showPopupOnClickLayers = ['bus-marker-layer'];
-
-    showPopupOnClickLayers.forEach(layer => {
-      this.map.on('click', layer, this.setPopupOnClick);
-    });
+    this.map.on('click', 'bus-marker-layer', this.handleSymbolClick);
   };
 
   render() {
