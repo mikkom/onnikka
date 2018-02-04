@@ -2,13 +2,20 @@ import React, { Component } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
+/*
+  Colors:
+  'LATE', '#d32d7d',
+  'EARLY', '#009f7e',
+  'ON_TIME' '#0079c2'
+*/
+
 const MAPBOX_API_TOKEN =
   'pk.eyJ1IjoibWlra29tIiwiYSI6ImNqM2g1dXQ5eDAwMHgycXM5YXg5OTZ1NTMifQ.4Wi7iBgAcC4lyO395jwhRQ';
 
 const BUS_API_URL =
   'https://eviuqea087.execute-api.eu-central-1.amazonaws.com/dev/buses';
 
-const BUS_MARKER_SOURCE_NAME = 'bus-markers';
+const BUS_MARKER_SOURCE_NAME = 'bus-marker-source';
 
 const TAMPERE_BBOX = [
   [23.647643287532077, 61.37612570456474],
@@ -38,25 +45,29 @@ const getDelayString = delayMin => {
 };
 
 const convertToGeoJson = (buses = []) => {
-  const features = buses.map(({ location, delay, ...rest }) => {
-    const { latitude, longitude } = location;
-    const delayMin = secsToMin(delay);
-    const status = getBusStatus(delayMin);
-    return {
-      geometry: {
-        type: 'Point',
-        coordinates: [longitude, latitude]
-      },
-      type: 'Feature',
-      properties: {
-        ...rest,
-        latitude,
-        longitude,
-        delayMin,
-        status
-      }
-    };
-  });
+  const features = buses
+    .filter(bus => bus.journeyPatternRef !== '37')
+    .map(({ location, delay, bearing, ...rest }) => {
+      const { latitude, longitude } = location;
+      const delayMin = secsToMin(delay);
+      const status = getBusStatus(delayMin);
+      return {
+        geometry: {
+          type: 'Point',
+          coordinates: [longitude, latitude]
+        },
+        type: 'Feature',
+        properties: {
+          ...rest,
+          bearing,
+          markerRotation: bearing - 45,
+          latitude,
+          longitude,
+          delayMin,
+          status
+        }
+      };
+    });
 
   return {
     type: 'FeatureCollection',
@@ -82,8 +93,7 @@ export class Map extends Component {
 
     this.map = new mapboxgl.Map({
       container: this.el,
-      // style: 'mapbox://styles/mapbox/streets-v9'
-      style: 'mapbox://styles/mikkom/cj7j0ny3v5vp72rq5myy7snhy'
+      style: 'mapbox://styles/mikkom/cjd8g272r21822rrwi2p4hhs4'
     });
 
     this.map.fitBounds(TAMPERE_BBOX, {
@@ -147,69 +157,42 @@ export class Map extends Component {
     });
 
     this.map.addLayer({
-      id: 'bus-arrows',
+      id: 'bus-marker-layer',
       type: 'symbol',
       source: BUS_MARKER_SOURCE_NAME,
       layout: {
-        'icon-image': 'triangle-stroked-11',
-        'icon-size': 3,
-        'icon-offset': [0, -3],
-        'icon-rotate': { type: 'identity', property: 'bearing' },
+        'icon-image': [
+          'match',
+          ['get', 'status'],
+          'LATE',
+          'bus-marker-late',
+          'EARLY',
+          'bus-marker-early',
+          /* default */ 'bus-marker'
+        ],
+        'icon-rotate': { type: 'identity', property: 'markerRotation' },
+        'icon-size': 0.85,
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
         'icon-anchor': 'center'
-      },
-      paint: {
-        'icon-color': [
-          'match',
-          ['get', 'status'],
-          'LATE',
-          '#d32d7d',
-          'EARLY',
-          '#009f7e',
-          /* other */ '#0079c2'
-        ]
       }
     });
 
     this.map.addLayer({
-      id: 'bus-circles',
-      type: 'circle',
-      source: BUS_MARKER_SOURCE_NAME,
-      paint: {
-        'circle-color': [
-          'match',
-          ['get', 'status'],
-          'LATE',
-          '#d32d7d',
-          'EARLY',
-          '#009f7e',
-          /* other */ '#0079c2'
-        ],
-        'circle-radius': 15,
-        'circle-opacity': 0.9
-      }
-    });
-
-    this.map.addLayer({
-      id: 'bus-line-names',
+      id: 'bus-line-ref-layer',
       type: 'symbol',
       source: BUS_MARKER_SOURCE_NAME,
       layout: {
         'text-field': '{journeyPatternRef}',
         'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-        'text-size': 12
+        'text-size': 14
       },
       paint: {
         'text-color': '#FFFFFF'
       }
     });
 
-    const showPopupOnClickLayers = [
-      'bus-arrows',
-      'bus-circles',
-      'bus-line-names'
-    ];
+    const showPopupOnClickLayers = ['bus-marker-layer', 'bus-line-ref-layer'];
 
     showPopupOnClickLayers.forEach(layer => {
       this.map.on('click', layer, this.setPopupOnClick);
