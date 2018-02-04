@@ -118,7 +118,6 @@ export class Map extends Component {
   };
 
   updateBuses = buses => {
-    console.log('got buses', buses);
     this.buses = buses;
     const source = this.map.getSource(BUS_MARKER_SOURCE_NAME);
     if (!source) {
@@ -126,7 +125,6 @@ export class Map extends Component {
       return;
     }
     const geoJson = convertToGeoJson(buses);
-    console.log('got geoJson', geoJson);
     source.setData(geoJson);
   };
 
@@ -174,15 +172,8 @@ export class Map extends Component {
         'icon-size': 0.85,
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
-        'icon-anchor': 'center'
-      }
-    });
-
-    this.map.addLayer({
-      id: 'bus-line-ref-layer',
-      type: 'symbol',
-      source: BUS_MARKER_SOURCE_NAME,
-      layout: {
+        'text-optional': true,
+        'icon-anchor': 'center',
         'text-field': '{journeyPatternRef}',
         'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
         'text-size': 14
@@ -192,7 +183,7 @@ export class Map extends Component {
       }
     });
 
-    const showPopupOnClickLayers = ['bus-marker-layer', 'bus-line-ref-layer'];
+    const showPopupOnClickLayers = ['bus-marker-layer'];
 
     showPopupOnClickLayers.forEach(layer => {
       this.map.on('click', layer, this.setPopupOnClick);
