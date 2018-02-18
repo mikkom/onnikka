@@ -1,13 +1,16 @@
 import React, { Component } from 'react';
+import styled from 'styled-components';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-/*
-  Colors:
-  'LATE', '#d32d7d',
-  'EARLY', '#009f7e',
-  'ON_TIME' '#0079c2'
-*/
+// eslint-disable-next-line no-unused-vars
+const COLOR_THEME = {
+  LATE: '#d32d7d',
+  EARLY: '#009f7e',
+  ON_TIME: '#0079c2'
+};
+
+const UPDATE_INTERVAL = 1000;
 
 const MAPBOX_API_TOKEN =
   'pk.eyJ1IjoibWlra29tIiwiYSI6ImNqM2g1dXQ5eDAwMHgycXM5YXg5OTZ1NTMifQ.4Wi7iBgAcC4lyO395jwhRQ';
@@ -45,29 +48,27 @@ const getDelayString = delayMin => {
 };
 
 const convertToGeoJson = (buses = []) => {
-  const features = buses
-    .filter(bus => bus.journeyPatternRef !== '37')
-    .map(({ location, delay, bearing, ...rest }) => {
-      const { latitude, longitude } = location;
-      const delayMin = secsToMin(delay);
-      const status = getBusStatus(delayMin);
-      return {
-        geometry: {
-          type: 'Point',
-          coordinates: [longitude, latitude]
-        },
-        type: 'Feature',
-        properties: {
-          ...rest,
-          bearing,
-          markerRotation: bearing - 45,
-          latitude,
-          longitude,
-          delayMin,
-          status
-        }
-      };
-    });
+  const features = buses.map(({ location, delay, bearing, ...rest }) => {
+    const { latitude, longitude } = location;
+    const delayMin = secsToMin(delay);
+    const status = getBusStatus(delayMin);
+    return {
+      geometry: {
+        type: 'Point',
+        coordinates: [longitude, latitude]
+      },
+      type: 'Feature',
+      properties: {
+        ...rest,
+        bearing,
+        markerRotation: bearing - 45,
+        latitude,
+        longitude,
+        delayMin,
+        status
+      }
+    };
+  });
 
   return {
     type: 'FeatureCollection',
@@ -75,14 +76,29 @@ const convertToGeoJson = (buses = []) => {
   };
 };
 
+const MapNotification = styled.div`
+  position: absolute;
+  top: 5px;
+  left: 10px;
+  z-index: 1;
+  color: red;
+  font-weight: bold;
+  background-color: white;
+  padding: 5px;
+`;
+
 export class Map extends Component {
+  state = {
+    dataTimestamp: null
+  };
+
   componentDidMount() {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(this.updatePosition);
     }
 
     this.fetchBuses();
-    this.intervalId = setInterval(this.fetchBuses, 1000);
+    this.intervalId = setInterval(this.fetchBuses, UPDATE_INTERVAL);
 
     mapboxgl.accessToken = MAPBOX_API_TOKEN;
 
@@ -125,6 +141,7 @@ export class Map extends Component {
 
   updateBuses = buses => {
     this.buses = buses;
+    this.setState({ dataTimestamp: Date.now() });
     const source = this.map.getSource(BUS_MARKER_SOURCE_NAME);
     if (!source) {
       // Not ready yet
@@ -198,7 +215,9 @@ export class Map extends Component {
         'icon-rotate': { type: 'identity', property: 'markerRotation' },
         'icon-size': 0.85,
         'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
+        'icon-ignore-placement': false, // default
+        'text-allow-overlap': false, // default
+        'text-ignore-placement': false, // default
         'text-optional': true,
         'icon-anchor': 'center',
         'text-field': '{journeyPatternRef}',
@@ -215,6 +234,16 @@ export class Map extends Component {
 
   render() {
     const { className } = this.props;
-    return <div ref={this.setMapContainer} className={className} />;
+    const { dataTimestamp } = this.state;
+    const dataAgeMs = dataTimestamp ? Date.now() - dataTimestamp : 0;
+    const dataAge = Math.round(dataAgeMs / 1000);
+    return (
+      <div ref={this.setMapContainer} className={className}>
+        {dataAge > 5 && (
+          <MapNotification
+          >{`The bus data is ${dataAge} seconds old`}</MapNotification>
+        )}
+      </div>
+    );
   }
 }
