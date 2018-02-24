@@ -10,7 +10,8 @@ const COLOR_THEME = {
   ON_TIME: '#0079c2'
 };
 
-const UPDATE_INTERVAL = 1000;
+const UPDATE_INTERVAL = 1000; // milliseconds
+const STALE_DATA_THRESHOLD = 5; // seconds
 
 const MAPBOX_API_TOKEN =
   'pk.eyJ1IjoibWlra29tIiwiYSI6ImNqM2g1dXQ5eDAwMHgycXM5YXg5OTZ1NTMifQ.4Wi7iBgAcC4lyO395jwhRQ';
@@ -89,16 +90,16 @@ const MapNotification = styled.div`
 
 export class Map extends Component {
   state = {
-    dataTimestamp: null
+    dataAge: null
   };
 
   componentDidMount() {
+    this.fetchBuses();
+    this.intervalId = setInterval(this.fetchBuses, UPDATE_INTERVAL);
+
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(this.updatePosition);
     }
-
-    this.fetchBuses();
-    this.intervalId = setInterval(this.fetchBuses, UPDATE_INTERVAL);
 
     mapboxgl.accessToken = MAPBOX_API_TOKEN;
 
@@ -133,6 +134,19 @@ export class Map extends Component {
     }
   }
 
+  checkForStaleData = () => {
+    if (this.dataTimestamp) {
+      const { dataAge: prevDataAge } = this.state;
+      const dataAgeMs = Date.now() - this.dataTimestamp;
+      const dataAge = Math.round(dataAgeMs / 1000);
+      if (dataAge >= STALE_DATA_THRESHOLD && prevDataAge !== dataAge) {
+        this.setState({ dataAge });
+      } else if (dataAge < STALE_DATA_THRESHOLD && prevDataAge) {
+        this.setState({ dataAge: null });
+      }
+    }
+  };
+
   updatePosition = ({ coords }) => {
     const { latitude, longitude, accuracy } = coords;
     console.log('Position accuracy', accuracy);
@@ -141,7 +155,7 @@ export class Map extends Component {
 
   updateBuses = buses => {
     this.buses = buses;
-    this.setState({ dataTimestamp: Date.now() });
+    this.dataTimestamp = Date.now();
     const source = this.map.getSource(BUS_MARKER_SOURCE_NAME);
     if (!source) {
       // Not ready yet
@@ -151,10 +165,12 @@ export class Map extends Component {
     source.setData(geoJson);
   };
 
-  fetchBuses = () =>
-    fetch(BUS_API_URL)
+  fetchBuses = () => {
+    this.checkForStaleData();
+    return fetch(BUS_API_URL)
       .then(response => response.json())
       .then(this.updateBuses);
+  };
 
   setMapContainer = el => {
     this.el = el;
@@ -234,12 +250,10 @@ export class Map extends Component {
 
   render() {
     const { className } = this.props;
-    const { dataTimestamp } = this.state;
-    const dataAgeMs = dataTimestamp ? Date.now() - dataTimestamp : 0;
-    const dataAge = Math.round(dataAgeMs / 1000);
+    const { dataAge } = this.state;
     return (
       <div ref={this.setMapContainer} className={className}>
-        {dataAge > 5 && (
+        {dataAge && (
           <MapNotification
           >{`The bus data is ${dataAge} seconds old`}</MapNotification>
         )}
