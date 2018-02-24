@@ -61,28 +61,30 @@ const getDelayString = delayMin => {
   }
 };
 
-const convertToGeoJson = (buses = []) => {
-  const features = buses.map(({ location, delay, bearing, ...rest }) => {
-    const { latitude, longitude } = location;
-    const delayMin = secsToMin(delay);
-    const status = getBusStatus(delayMin);
-    return {
-      geometry: {
-        type: 'Point',
-        coordinates: [longitude, latitude]
-      },
-      type: 'Feature',
-      properties: {
-        ...rest,
-        bearing,
-        markerRotation: bearing - 45,
-        latitude,
-        longitude,
-        delayMin,
-        status
-      }
-    };
-  });
+const convertToGeoJson = (buses = {}) => {
+  const features = Object.values(buses).map(
+    ({ location, delay, bearing, ...rest }) => {
+      const { latitude, longitude } = location;
+      const delayMin = secsToMin(delay);
+      const status = getBusStatus(delayMin);
+      return {
+        geometry: {
+          type: 'Point',
+          coordinates: [longitude, latitude]
+        },
+        type: 'Feature',
+        properties: {
+          ...rest,
+          bearing,
+          markerRotation: bearing - 45,
+          latitude,
+          longitude,
+          delayMin,
+          status
+        }
+      };
+    }
+  );
 
   return {
     type: 'FeatureCollection',
@@ -168,6 +170,13 @@ export class Map extends Component {
 
   updateBuses = buses => {
     this.buses = buses;
+    if (this.selectedVehicleRef && this.popup) {
+      const bus = buses[this.selectedVehicleRef];
+      if (bus) {
+        const { latitude, longitude } = bus.location;
+        this.popup.setLngLat([longitude, latitude]);
+      }
+    }
     this.dataTimestamp = Date.now();
     const source = this.map.getSource(BUS_MARKER_SOURCE_NAME);
     if (!source) {
@@ -190,9 +199,9 @@ export class Map extends Component {
   };
 
   removePopup = () => {
-    const { popup } = this;
-    if (popup) {
-      popup.remove();
+    this.selectedVehicleRef = null;
+    if (this.popup) {
+      this.popup.remove();
       this.popup = null;
     }
   };
@@ -211,6 +220,7 @@ export class Map extends Component {
     console.log('feature.properties', feature.properties);
     const vehicle = formatVehicleRef(vehicleRef);
     this.removePopup();
+    this.selectedVehicleRef = vehicleRef;
     this.popup = new mapboxgl.Popup({ closeButton: false })
       .setLngLat([longitude, latitude])
       .setHTML(
