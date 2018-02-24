@@ -1,6 +1,7 @@
 {
   "name": "onnikka-app",
   "version": "0.1.0",
+  "homepage": "https://onnikka.net",
   "private": true,
   "dependencies": {
     "classnames": "^2.2.5",
