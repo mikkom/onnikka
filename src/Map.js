@@ -28,6 +28,11 @@ const TAMPERE_BBOX = [
 
 const secsToMin = seconds => Math.round(seconds / 60);
 
+const formatVehicleRef = (vehicleRef = '') => {
+  const str = vehicleRef.trim().replace('_', ' ');
+  return `${str.charAt(0).toUpperCase()}${str.substr(1)}`;
+};
+
 const getBusStatus = delayMin => {
   if (delayMin > 1) {
     return 'LATE';
@@ -196,11 +201,12 @@ export class Map extends Component {
       speed
     } = feature.properties;
     console.log('feature.properties', feature.properties);
+    const vehicle = formatVehicleRef(vehicleRef);
     this.removePopup();
     this.popup = new mapboxgl.Popup({ closeButton: false })
       .setLngLat([longitude, latitude])
       .setHTML(
-        `<b>Line ${journeyPatternRef}</b> (${vehicleRef})
+        `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
         <br />
         ${getDelayString(delayMin)}<br />
         Speed ${speed} km/h`
