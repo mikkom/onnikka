@@ -33,6 +33,14 @@ const formatVehicleRef = (vehicleRef = '') => {
   return `${str.charAt(0).toUpperCase()}${str.substr(1)}`;
 };
 
+const formatTime = timeInSeconds => {
+  const minutes = Math.floor(timeInSeconds / 60);
+  const seconds = timeInSeconds % 60;
+  const minPart = minutes ? `${minutes} min` : '';
+  const secPart = seconds ? `${seconds} s` : '';
+  return [minPart, secPart].filter(Boolean).join(' ');
+};
+
 const getBusStatus = delayMin => {
   if (delayMin > 1) {
     return 'LATE';
@@ -260,8 +268,9 @@ export class Map extends Component {
     return (
       <div ref={this.setMapContainer} className={className}>
         {dataAge && (
-          <MapNotification
-          >{`The bus data is ${dataAge} seconds old`}</MapNotification>
+          <MapNotification>{`The bus data is ${formatTime(
+            dataAge
+          )} old`}</MapNotification>
         )}
       </div>
     );
