@@ -10,8 +10,9 @@ const COLOR_THEME = {
   ON_TIME: '#0079c2'
 };
 
-const UPDATE_INTERVAL = 1000; // milliseconds
-const STALE_DATA_THRESHOLD = 5; // seconds
+const UPDATE_INTERVAL = 1000; // ms
+const STALE_DATA_THRESHOLD = 5; // s
+const RELIABLE_SPEED_THRESHOLD = 1; // km/h
 
 const MAPBOX_API_TOKEN =
   'pk.eyJ1IjoibWlra29tIiwiYSI6ImNqM2g1dXQ5eDAwMHgycXM5YXg5OTZ1NTMifQ.4Wi7iBgAcC4lyO395jwhRQ';
@@ -119,7 +120,7 @@ export class Map extends Component {
     mapboxgl.accessToken = MAPBOX_API_TOKEN;
 
     if (!mapboxgl.supported) {
-      console.log('WebGL not supported');
+      console.error('WebGL not supported');
       return;
     }
 
@@ -163,21 +164,23 @@ export class Map extends Component {
   };
 
   updatePosition = ({ coords }) => {
-    const { latitude, longitude, accuracy } = coords;
-    console.log('Position accuracy', accuracy);
+    const { latitude, longitude } = coords;
     this.map.flyTo({ center: [longitude, latitude], zoom: 14 });
   };
 
   updateBuses = buses => {
-    this.buses = buses;
-    if (this.selectedVehicleRef && this.popup) {
-      const bus = buses[this.selectedVehicleRef];
-      if (bus) {
-        const { latitude, longitude } = bus.location;
-        this.popup.setLngLat([longitude, latitude]);
-      }
-    }
     this.dataTimestamp = Date.now();
+    if (this.buses) {
+      Object.keys(buses).forEach(key => {
+        const currentData = buses[key];
+        const previousData = this.buses[key];
+        if (previousData && currentData.speed < RELIABLE_SPEED_THRESHOLD) {
+          // Speed is too low, keep the old bearing
+          currentData.bearing = previousData.bearing;
+        }
+      });
+    }
+    this.buses = buses;
     const source = this.map.getSource(BUS_MARKER_SOURCE_NAME);
     if (!source) {
       // Not ready yet
@@ -185,6 +188,13 @@ export class Map extends Component {
     }
     const geoJson = convertToGeoJson(buses);
     source.setData(geoJson);
+
+    if (this.selectedVehicleRef && this.popup) {
+      const bus = buses[this.selectedVehicleRef];
+      if (bus) {
+        this.updatePopup({ ...bus, ...bus.location });
+      }
+    }
   };
 
   fetchBuses = () => {
@@ -206,30 +216,30 @@ export class Map extends Component {
     }
   };
 
-  handleSymbolClick = e => {
-    console.log(`got layer click with ${e.features.length} features`);
-    const feature = e.features[0];
-    const {
-      journeyPatternRef,
-      vehicleRef,
-      latitude,
-      longitude,
-      delayMin,
-      speed
-    } = feature.properties;
-    console.log('feature.properties', feature.properties);
+  updatePopup = ({
+    latitude,
+    longitude,
+    journeyPatternRef,
+    vehicleRef,
+    delayMin,
+    speed
+  }) => {
     const vehicle = formatVehicleRef(vehicleRef);
+    this.popup.setLngLat([longitude, latitude]).setHTML(
+      `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
+      <br />
+      ${getDelayString(delayMin)}<br />
+      Speed ${speed} km/h`
+    );
+  };
+
+  handleSymbolClick = e => {
+    const feature = e.features[0];
+    const bus = feature.properties;
     this.removePopup();
-    this.selectedVehicleRef = vehicleRef;
-    this.popup = new mapboxgl.Popup({ closeButton: false })
-      .setLngLat([longitude, latitude])
-      .setHTML(
-        `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
-        <br />
-        ${getDelayString(delayMin)}<br />
-        Speed ${speed} km/h`
-      )
-      .addTo(this.map);
+    this.selectedVehicleRef = bus.vehicleRef;
+    this.popup = new mapboxgl.Popup({ closeButton: false }).addTo(this.map);
+    this.updatePopup(bus);
   };
 
   onMapLoaded = () => {
