@@ -7,7 +7,8 @@ import {
   convertToGeoJson,
   formatTime,
   formatVehicleRef,
-  getDelayString
+  getDelayString,
+  secsToMin
 } from './utils';
 
 // eslint-disable-next-line no-unused-vars
@@ -116,7 +117,11 @@ export class Map extends Component {
     if (this.selectedVehicleRef && this.popup) {
       const bus = buses[this.selectedVehicleRef];
       if (bus) {
-        this.updatePopup({ ...bus, ...bus.location });
+        this.updatePopup({
+          ...bus,
+          ...bus.location,
+          delayMin: secsToMin(bus.delay)
+        });
       }
     }
   };

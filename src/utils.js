@@ -1,4 +1,4 @@
-const secsToMin = seconds => Math.round(seconds / 60);
+export const secsToMin = seconds => Math.round(seconds / 60);
 
 export const formatVehicleRef = (vehicleRef = '') => {
   const str = vehicleRef.trim().replace('_', ' ');
