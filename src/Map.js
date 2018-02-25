@@ -1,7 +1,14 @@
 import React, { Component } from 'react';
-import styled from 'styled-components';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { MapNotification } from './MapNotification';
+import { BUS_API_URL, MAPBOX_API_TOKEN } from './config';
+import {
+  convertToGeoJson,
+  formatTime,
+  formatVehicleRef,
+  getDelayString
+} from './utils';
 
 // eslint-disable-next-line no-unused-vars
 const COLOR_THEME = {
@@ -14,95 +21,12 @@ const UPDATE_INTERVAL = 1000; // ms
 const STALE_DATA_THRESHOLD = 5; // s
 const RELIABLE_SPEED_THRESHOLD = 1; // km/h
 
-const MAPBOX_API_TOKEN =
-  'pk.eyJ1IjoibWlra29tIiwiYSI6ImNqM2g1dXQ5eDAwMHgycXM5YXg5OTZ1NTMifQ.4Wi7iBgAcC4lyO395jwhRQ';
-
-const BUS_API_URL =
-  'https://eviuqea087.execute-api.eu-central-1.amazonaws.com/dev/buses';
-
 const BUS_MARKER_SOURCE_NAME = 'bus-marker-source';
 
 const TAMPERE_BBOX = [
   [23.647643287532077, 61.37612570456474],
   [23.905361244117643, 61.58820555151834]
 ];
-
-const secsToMin = seconds => Math.round(seconds / 60);
-
-const formatVehicleRef = (vehicleRef = '') => {
-  const str = vehicleRef.trim().replace('_', ' ');
-  return `${str.charAt(0).toUpperCase()}${str.substr(1)}`;
-};
-
-const formatTime = timeInSeconds => {
-  const minutes = Math.floor(timeInSeconds / 60);
-  const seconds = timeInSeconds % 60;
-  const minPart = minutes ? `${minutes} min` : '';
-  const secPart = seconds ? `${seconds} s` : '';
-  return [minPart, secPart].filter(Boolean).join(' ');
-};
-
-const getBusStatus = delayMin => {
-  if (delayMin > 1) {
-    return 'LATE';
-  } else if (delayMin < -1) {
-    return 'EARLY';
-  } else {
-    return 'ON_TIME';
-  }
-};
-
-const getDelayString = delayMin => {
-  if (delayMin > 0) {
-    return `Late ${delayMin} min`;
-  } else if (delayMin < 0) {
-    return `Early ${Math.abs(delayMin)} min`;
-  } else {
-    return 'On time';
-  }
-};
-
-const convertToGeoJson = (buses = {}) => {
-  const features = Object.values(buses).map(
-    ({ location, delay, bearing, ...rest }) => {
-      const { latitude, longitude } = location;
-      const delayMin = secsToMin(delay);
-      const status = getBusStatus(delayMin);
-      return {
-        geometry: {
-          type: 'Point',
-          coordinates: [longitude, latitude]
-        },
-        type: 'Feature',
-        properties: {
-          ...rest,
-          bearing,
-          markerRotation: bearing - 45,
-          latitude,
-          longitude,
-          delayMin,
-          status
-        }
-      };
-    }
-  );
-
-  return {
-    type: 'FeatureCollection',
-    features
-  };
-};
-
-const MapNotification = styled.div`
-  position: absolute;
-  top: 5px;
-  left: 10px;
-  z-index: 1;
-  color: red;
-  font-weight: bold;
-  background-color: white;
-  padding: 5px;
-`;
 
 export class Map extends Component {
   state = {
