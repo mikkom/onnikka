@@ -1,3 +1,4 @@
+// @flow
 import React, { Component } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -10,6 +11,7 @@ import {
   getDelayString,
   secsToMin
 } from './utils';
+import type { BusDataResponse } from './types';
 
 // eslint-disable-next-line no-unused-vars
 const COLOR_THEME = {
@@ -29,10 +31,35 @@ const TAMPERE_BBOX = [
   [23.905361244117643, 61.58820555151834]
 ];
 
-export class Map extends Component {
+type PopupData = {
+  latitude: number,
+  longitude: number,
+  journeyPatternRef: string,
+  vehicleRef: string,
+  delayMin: number,
+  speed: string
+};
+
+type Props = {
+  className: string
+};
+
+type State = {
+  dataAge: ?number
+};
+
+export class Map extends Component<Props, State> {
   state = {
     dataAge: null
   };
+
+  intervalId: any;
+  map: mapboxgl.Map;
+  popup: mapboxgl.Popup;
+  el: ?HTMLDivElement;
+  dataTimestamp: ?number;
+  buses: BusDataResponse;
+  selectedVehicleRef: ?string;
 
   componentDidMount() {
     this.fetchBuses();
@@ -76,9 +103,10 @@ export class Map extends Component {
   }
 
   checkForStaleData = () => {
-    if (this.dataTimestamp) {
+    const { dataTimestamp } = this;
+    if (dataTimestamp) {
       const { dataAge: prevDataAge } = this.state;
-      const dataAgeMs = Date.now() - this.dataTimestamp;
+      const dataAgeMs = Date.now() - dataTimestamp;
       const dataAge = Math.round(dataAgeMs / 1000);
       if (dataAge >= STALE_DATA_THRESHOLD && prevDataAge !== dataAge) {
         this.setState({ dataAge });
@@ -88,18 +116,21 @@ export class Map extends Component {
     }
   };
 
-  updatePosition = ({ coords }) => {
+  updatePosition = ({ coords }: Position) => {
     const { latitude, longitude } = coords;
     this.map.flyTo({ center: [longitude, latitude], zoom: 14 });
   };
 
-  updateBuses = buses => {
+  updateBuses = (buses: BusDataResponse) => {
     this.dataTimestamp = Date.now();
     if (this.buses) {
       Object.keys(buses).forEach(key => {
         const currentData = buses[key];
         const previousData = this.buses[key];
-        if (previousData && currentData.speed < RELIABLE_SPEED_THRESHOLD) {
+        if (
+          previousData &&
+          parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD
+        ) {
           // Speed is too low, keep the old bearing
           currentData.bearing = previousData.bearing;
         }
@@ -114,8 +145,9 @@ export class Map extends Component {
     const geoJson = convertToGeoJson(buses);
     source.setData(geoJson);
 
-    if (this.selectedVehicleRef && this.popup) {
-      const bus = buses[this.selectedVehicleRef];
+    const { selectedVehicleRef, popup } = this;
+    if (selectedVehicleRef && popup) {
+      const bus = buses[selectedVehicleRef];
       if (bus) {
         this.updatePopup({
           ...bus,
@@ -128,12 +160,12 @@ export class Map extends Component {
 
   fetchBuses = () => {
     this.checkForStaleData();
-    return fetch(BUS_API_URL)
+    fetch(BUS_API_URL)
       .then(response => response.json())
       .then(this.updateBuses);
   };
 
-  setMapContainer = el => {
+  setMapContainer = (el: ?HTMLDivElement) => {
     this.el = el;
   };
 
@@ -152,7 +184,7 @@ export class Map extends Component {
     vehicleRef,
     delayMin,
     speed
-  }) => {
+  }: PopupData) => {
     const vehicle = formatVehicleRef(vehicleRef);
     this.popup.setLngLat([longitude, latitude]).setHTML(
       `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
@@ -162,7 +194,7 @@ export class Map extends Component {
     );
   };
 
-  handleSymbolClick = e => {
+  handleSymbolClick = (e: any) => {
     const feature = e.features[0];
     const bus = feature.properties;
     this.removePopup();

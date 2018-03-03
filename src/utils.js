@@ -1,11 +1,14 @@
-export const secsToMin = seconds => Math.round(seconds / 60);
+// @flow
+import { type BusDataResponse } from './types';
 
-export const formatVehicleRef = (vehicleRef = '') => {
+export const secsToMin = (seconds: number) => Math.round(seconds / 60);
+
+export const formatVehicleRef = (vehicleRef?: string = '') => {
   const str = vehicleRef.trim().replace('_', ' ');
   return `${str.charAt(0).toUpperCase()}${str.substr(1)}`;
 };
 
-export const formatTime = timeInSeconds => {
+export const formatTime = (timeInSeconds: number) => {
   const minutes = Math.floor(timeInSeconds / 60);
   const seconds = timeInSeconds % 60;
   const minPart = minutes ? `${minutes} min` : '';
@@ -23,7 +26,7 @@ const getBusStatus = delayMin => {
   }
 };
 
-export const getDelayString = delayMin => {
+export const getDelayString = (delayMin: number) => {
   if (delayMin > 0) {
     return `Late ${delayMin} min`;
   } else if (delayMin < 0) {
@@ -33,30 +36,29 @@ export const getDelayString = delayMin => {
   }
 };
 
-export const convertToGeoJson = (buses = {}) => {
-  const features = Object.values(buses).map(
-    ({ location, delay, bearing, ...rest }) => {
-      const { latitude, longitude } = location;
-      const delayMin = secsToMin(delay);
-      const status = getBusStatus(delayMin);
-      return {
-        geometry: {
-          type: 'Point',
-          coordinates: [longitude, latitude]
-        },
-        type: 'Feature',
-        properties: {
-          ...rest,
-          bearing,
-          markerRotation: bearing - 45,
-          latitude,
-          longitude,
-          delayMin,
-          status
-        }
-      };
-    }
-  );
+export const convertToGeoJson = (buses?: BusDataResponse = {}) => {
+  const features = Object.keys(buses).map(key => {
+    const { location, delay, bearing, ...rest } = buses[key];
+    const { latitude, longitude } = location;
+    const delayMin = secsToMin(delay);
+    const status = getBusStatus(delayMin);
+    return {
+      geometry: {
+        type: 'Point',
+        coordinates: [longitude, latitude]
+      },
+      type: 'Feature',
+      properties: {
+        ...rest,
+        bearing,
+        markerRotation: bearing - 45,
+        latitude,
+        longitude,
+        delayMin,
+        status
+      }
+    };
+  });
 
   return {
     type: 'FeatureCollection',
