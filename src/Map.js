@@ -20,7 +20,7 @@ const COLOR_THEME = {
   ON_TIME: '#0079c2'
 };
 
-const UPDATE_INTERVAL = 1000; // ms
+const UPDATE_INTERVAL = 2000; // ms
 const STALE_DATA_THRESHOLD = 5; // s
 const RELIABLE_SPEED_THRESHOLD = 1; // km/h
 
