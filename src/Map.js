@@ -165,6 +165,11 @@ export class Map extends Component<Props, State> {
   };
 
   fetchBuses = () => {
+    if (document.hidden) {
+      // Let's not hit the API when the app is hidden
+      return;
+    }
+
     this.checkForStaleData();
     fetch(BUS_API_URL)
       .then(response => response.json())
