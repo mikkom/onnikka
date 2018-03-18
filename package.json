@@ -13,7 +13,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build":
+      "REACT_APP_VERSION=$(git rev-parse --short HEAD) REACT_APP_BUILD_TIME=$(date +%Y-%m-%dT%H:%M:%S%z) react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
     "flow": "flow"

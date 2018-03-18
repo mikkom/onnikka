@@ -2,7 +2,10 @@
 import React, { Component } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { MapNotification } from './MapNotification';
+import {
+  TopLeftMapNotification,
+  TopRightMapNotification
+} from './MapNotification';
 import { BUS_API_URL } from './config';
 import {
   convertToGeoJson,
@@ -62,6 +65,9 @@ export class Map extends Component<Props, State> {
   selectedVehicleRef: ?string;
 
   componentDidMount() {
+    console.log('App version', process.env.REACT_APP_VERSION);
+    console.log('Built on', process.env.REACT_APP_BUILD_TIME);
+
     this.fetchBuses();
     this.intervalId = setInterval(this.fetchBuses, UPDATE_INTERVAL);
 
@@ -250,10 +256,13 @@ export class Map extends Component<Props, State> {
     return (
       <div ref={this.setMapContainer} className={className}>
         {dataAge && (
-          <MapNotification>{`The bus data is ${formatTime(
+          <TopLeftMapNotification>{`The bus data is ${formatTime(
             dataAge
-          )} old`}</MapNotification>
+          )} old`}</TopLeftMapNotification>
         )}
+        <TopRightMapNotification>
+          {process.env.REACT_APP_BUILD_TIME || 'development'}
+        </TopRightMapNotification>
       </div>
     );
   }
