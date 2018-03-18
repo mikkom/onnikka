@@ -3,7 +3,7 @@ import React, { Component } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { MapNotification } from './MapNotification';
-import { BUS_API_URL, MAPBOX_API_TOKEN } from './config';
+import { BUS_API_URL } from './config';
 import {
   convertToGeoJson,
   formatTime,
@@ -69,7 +69,7 @@ export class Map extends Component<Props, State> {
       navigator.geolocation.getCurrentPosition(this.updatePosition);
     }
 
-    mapboxgl.accessToken = MAPBOX_API_TOKEN;
+    mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_API_TOKEN;
 
     if (!mapboxgl.supported) {
       console.error('WebGL not supported');
@@ -162,7 +162,8 @@ export class Map extends Component<Props, State> {
     this.checkForStaleData();
     fetch(BUS_API_URL)
       .then(response => response.json())
-      .then(this.updateBuses);
+      .then(this.updateBuses)
+      .catch(console.error);
   };
 
   setMapContainer = (el: ?HTMLDivElement) => {
