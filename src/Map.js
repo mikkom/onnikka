@@ -24,7 +24,8 @@ const COLOR_THEME = {
 };
 
 const UPDATE_INTERVAL = 2000; // ms
-const STALE_DATA_THRESHOLD = 5; // s
+const STALE_DATA_CHECK_INTERVAL = 1000; // ms
+const STALE_DATA_THRESHOLD = 10; // s
 const RELIABLE_SPEED_THRESHOLD = 1; // km/h
 
 const BUS_MARKER_SOURCE_NAME = 'bus-marker-source';
@@ -56,7 +57,8 @@ export class Map extends Component<Props, State> {
     dataAge: null
   };
 
-  intervalId: any;
+  staleDataCheckIntervalId: any;
+  updateTimeoutId: any;
   map: mapboxgl.Map;
   popup: mapboxgl.Popup;
   el: ?HTMLDivElement;
@@ -69,10 +71,13 @@ export class Map extends Component<Props, State> {
     console.log('Built on', process.env.REACT_APP_BUILD_TIME);
 
     this.fetchBuses();
-    this.intervalId = setInterval(this.fetchBuses, UPDATE_INTERVAL);
+    this.staleDataCheckIntervalId = setInterval(
+      this.checkForStaleData,
+      STALE_DATA_CHECK_INTERVAL
+    );
 
     if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(this.updatePosition);
+      navigator.geolocation.getCurrentPosition(this.checkForStaleData);
     }
 
     mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_API_TOKEN;
@@ -96,10 +101,15 @@ export class Map extends Component<Props, State> {
   }
 
   componentWillUnmount() {
-    const { intervalId, map } = this;
-    if (intervalId) {
-      clearInterval(intervalId);
-      this.intervalId = null;
+    const { updateTimeoutId, staleDataCheckIntervalId, map } = this;
+    if (updateTimeoutId) {
+      clearTimeout(updateTimeoutId);
+      this.updateTimeoutId = null;
+    }
+
+    if (staleDataCheckIntervalId) {
+      clearInterval(staleDataCheckIntervalId);
+      this.staleDataCheckIntervalId = null;
     }
 
     if (map) {
@@ -164,17 +174,26 @@ export class Map extends Component<Props, State> {
     }
   };
 
+  restartUpdateTimer = () => {
+    this.updateTimeoutId = setTimeout(this.fetchBuses, UPDATE_INTERVAL);
+  };
+
   fetchBuses = () => {
     if (document.hidden) {
       // Let's not hit the API when the app is hidden
+      this.restartUpdateTimer();
       return;
     }
 
-    this.checkForStaleData();
     fetch(BUS_API_URL)
       .then(response => response.json())
       .then(this.updateBuses)
-      .catch(console.error);
+      .then(console.log)
+      .then(this.restartUpdateTimer)
+      .catch(err => {
+        console.error(err);
+        this.restartUpdateTimer();
+      });
   };
 
   setMapContainer = (el: ?HTMLDivElement) => {
