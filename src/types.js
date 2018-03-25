@@ -9,7 +9,7 @@ export type BusData = {
   journeyPatternRef: string,
   vehicleRef: string,
   location: LatLng,
-  bearing: number,
+  bearing: ?number,
   delay: number,
   speed: string
 };

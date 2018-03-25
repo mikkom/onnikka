@@ -51,7 +51,7 @@ export const convertToGeoJson = (buses?: BusDataResponse = {}) => {
       properties: {
         ...rest,
         bearing,
-        markerRotation: bearing - 45,
+        markerRotation: bearing != null ? bearing - 45 : 0,
         latitude,
         longitude,
         delayMin,

@@ -143,12 +143,9 @@ export class Map extends Component<Props, State> {
       Object.keys(buses).forEach(key => {
         const currentData = buses[key];
         const previousData = this.buses[key];
-        if (
-          previousData &&
-          parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD
-        ) {
-          // Speed is too low, keep the old bearing
-          currentData.bearing = previousData.bearing;
+        if (parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD) {
+          // Speed is too low, keep the old bearing if available or set as null
+          currentData.bearing = previousData && previousData.bearing;
         }
       });
     }
@@ -245,13 +242,26 @@ export class Map extends Component<Props, State> {
       source: BUS_MARKER_SOURCE_NAME,
       layout: {
         'icon-image': [
-          'match',
-          ['get', 'status'],
-          'LATE',
-          'bus-marker-late',
-          'EARLY',
-          'bus-marker-early',
-          /* default */ 'bus-marker'
+          'case',
+          ['==', ['get', 'bearing'], null],
+          [
+            'match',
+            ['get', 'status'],
+            'LATE',
+            'stationary-bus-late',
+            'EARLY',
+            'stationary-bus-early',
+            /* default */ 'stationary-bus'
+          ],
+          [
+            'match',
+            ['get', 'status'],
+            'LATE',
+            'bus-marker-late',
+            'EARLY',
+            'bus-marker-early',
+            /* default */ 'bus-marker'
+          ]
         ],
         'icon-rotate': { type: 'identity', property: 'markerRotation' },
         'icon-size': 0.85,
