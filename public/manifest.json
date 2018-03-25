@@ -3,13 +3,28 @@
   "name": "Onnikka",
   "icons": [
     {
+      "src": "icon.svg",
+      "sizes": "256x256",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
       "src": "favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     }
   ],
   "start_url": "./index.html",
-  "display": "standalone",
+  "display": "fullscreen",
   "theme_color": "#0079c2",
-  "background_color": "#ffffff"
+  "background_color": "#0079c2"
 }
