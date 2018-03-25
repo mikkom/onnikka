@@ -4,6 +4,8 @@ export type LatLng = {
   longitude: number
 };
 
+export type BoundingBox = [number, number, number, number];
+
 export type BusData = {
   lineRef: string,
   journeyPatternRef: string,

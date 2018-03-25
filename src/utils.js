@@ -1,5 +1,5 @@
 // @flow
-import { type BusDataResponse } from './types';
+import type { BoundingBox, BusDataResponse, LatLng } from './types';
 
 export const secsToMin = (seconds: number) => Math.round(seconds / 60);
 
@@ -65,3 +65,17 @@ export const convertToGeoJson = (buses?: BusDataResponse = {}) => {
     features
   };
 };
+
+export const convertPointToGeoJson = ({ latitude, longitude }: LatLng) => ({
+  type: 'Point',
+  coordinates: [longitude, latitude]
+});
+
+export const isWithinBoundingBox = (
+  { latitude, longitude }: LatLng,
+  [west, south, east, north]: BoundingBox
+) =>
+  latitude >= south &&
+  latitude <= north &&
+  longitude >= west &&
+  longitude <= east;

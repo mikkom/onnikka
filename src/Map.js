@@ -12,9 +12,11 @@ import {
   formatTime,
   formatVehicleRef,
   getDelayString,
-  secsToMin
+  secsToMin,
+  convertPointToGeoJson,
+  isWithinBoundingBox
 } from './utils';
-import type { BusDataResponse } from './types';
+import type { BusDataResponse, LatLng } from './types';
 
 // eslint-disable-next-line no-unused-vars
 const COLOR_THEME = {
@@ -29,10 +31,13 @@ const STALE_DATA_THRESHOLD = 10; // s
 const RELIABLE_SPEED_THRESHOLD = 1; // km/h
 
 const BUS_MARKER_SOURCE_NAME = 'bus-marker-source';
+const CURRENT_POSITION_SOURCE_NAME = 'current-location';
 
 const TAMPERE_BBOX = [
-  [23.647643287532077, 61.37612570456474],
-  [23.905361244117643, 61.58820555151834]
+  23.647643287532077,
+  61.37612570456474,
+  23.905361244117643,
+  61.58820555151834
 ];
 
 type PopupData = {
@@ -59,6 +64,8 @@ export class Map extends Component<Props, State> {
 
   staleDataCheckIntervalId: any;
   updateTimeoutId: any;
+  positionWatcherId: any;
+  currentPosition: LatLng = { latitude: 0, longitude: 0 };
   map: mapboxgl.Map;
   popup: mapboxgl.Popup;
   el: ?HTMLDivElement;
@@ -77,7 +84,10 @@ export class Map extends Component<Props, State> {
     );
 
     if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(this.checkForStaleData);
+      navigator.geolocation.getCurrentPosition(this.zoomToCurrentPosition);
+      this.positionWatcherId = navigator.geolocation.watchPosition(
+        this.updateCurrentPosition
+      );
     }
 
     mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_API_TOKEN;
@@ -101,7 +111,13 @@ export class Map extends Component<Props, State> {
   }
 
   componentWillUnmount() {
-    const { updateTimeoutId, staleDataCheckIntervalId, map } = this;
+    const {
+      updateTimeoutId,
+      staleDataCheckIntervalId,
+      positionWatcherId,
+      map
+    } = this;
+
     if (updateTimeoutId) {
       clearTimeout(updateTimeoutId);
       this.updateTimeoutId = null;
@@ -110,6 +126,11 @@ export class Map extends Component<Props, State> {
     if (staleDataCheckIntervalId) {
       clearInterval(staleDataCheckIntervalId);
       this.staleDataCheckIntervalId = null;
+    }
+
+    if (positionWatcherId) {
+      navigator.geolocation.clearWatch(positionWatcherId);
+      this.positionWatcherId = null;
     }
 
     if (map) {
@@ -132,9 +153,22 @@ export class Map extends Component<Props, State> {
     }
   };
 
-  updatePosition = ({ coords }: Position) => {
-    const { latitude, longitude } = coords;
-    this.map.flyTo({ center: [longitude, latitude], zoom: 14 });
+  zoomToCurrentPosition = ({ coords }: Position) => {
+    if (isWithinBoundingBox(coords, TAMPERE_BBOX)) {
+      const { latitude, longitude } = coords;
+      this.map.flyTo({ center: [longitude, latitude], zoom: 14 });
+    }
+  };
+
+  updateCurrentPosition = ({ coords }: Position) => {
+    this.currentPosition = coords;
+    const source = this.map.getSource(CURRENT_POSITION_SOURCE_NAME);
+    if (!source) {
+      // Source is not ready yet
+      return;
+    }
+    const geoJson = convertPointToGeoJson(coords);
+    source.setData(geoJson);
   };
 
   updateBuses = (buses: BusDataResponse) => {
@@ -152,7 +186,7 @@ export class Map extends Component<Props, State> {
     this.buses = buses;
     const source = this.map.getSource(BUS_MARKER_SOURCE_NAME);
     if (!source) {
-      // Not ready yet
+      // Source is not ready yet
       return;
     }
     const geoJson = convertToGeoJson(buses);
@@ -234,6 +268,24 @@ export class Map extends Component<Props, State> {
     this.map.addSource(BUS_MARKER_SOURCE_NAME, {
       type: 'geojson',
       data: convertToGeoJson(this.buses)
+    });
+
+    this.map.addSource(CURRENT_POSITION_SOURCE_NAME, {
+      type: 'geojson',
+      data: convertPointToGeoJson(this.currentPosition)
+    });
+
+    this.map.addLayer({
+      id: 'current-position-layer',
+      type: 'symbol',
+      source: CURRENT_POSITION_SOURCE_NAME,
+      layout: {
+        'icon-image': 'current-location',
+        'icon-size': 0.85,
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': false, // default
+        'icon-anchor': 'center'
+      }
     });
 
     this.map.addLayer({
