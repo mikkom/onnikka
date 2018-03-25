@@ -188,7 +188,6 @@ export class Map extends Component<Props, State> {
     fetch(BUS_API_URL)
       .then(response => response.json())
       .then(this.updateBuses)
-      .then(console.log)
       .then(this.restartUpdateTimer)
       .catch(err => {
         console.error(err);
