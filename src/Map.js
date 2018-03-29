@@ -335,6 +335,11 @@ export class Map extends Component<Props, State> {
     this.map.on('click', 'bus-marker-layer', this.handleSymbolClick);
   };
 
+  resizeMap = (e: any) => {
+    e.preventDefault();
+    this.map && this.map.resize();
+  };
+
   render() {
     const { className } = this.props;
     const { dataAge } = this.state;
@@ -345,7 +350,7 @@ export class Map extends Component<Props, State> {
             dataAge
           )} old`}</TopLeftMapNotification>
         )}
-        <TopRightMapNotification>
+        <TopRightMapNotification onClick={this.resizeMap}>
           {process.env.REACT_APP_BUILD_TIME || 'development'}
         </TopRightMapNotification>
       </div>
