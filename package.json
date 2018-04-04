@@ -5,7 +5,7 @@
   "private": true,
   "dependencies": {
     "classnames": "^2.2.5",
-    "mapbox-gl": "^0.44.1",
+    "mapbox-gl": "^0.44.2",
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
     "react-scripts": "1.1.1",
@@ -13,8 +13,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build":
-      "REACT_APP_VERSION=$(git rev-parse --short HEAD) REACT_APP_BUILD_TIME=$(date +%Y-%m-%dT%H:%M:%S%z) react-scripts build",
+    "build": "REACT_APP_VERSION=$(git rev-parse --short HEAD) REACT_APP_BUILD_TIME=$(date +%Y-%m-%dT%H:%M:%S%z) react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
     "flow": "flow"
