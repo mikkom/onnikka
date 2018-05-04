@@ -1,5 +1,6 @@
 [ignore]
 .*/node_modules/jsonlint-lines-primitives/test/fails/.*
+.*/node_modules/@mapbox/jsonlint-lines-primitives/test/fails/.*
 
 [include]
 
