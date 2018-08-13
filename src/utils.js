@@ -43,7 +43,10 @@ export const getDelayString = (delayMin: number) => {
 };
 
 export const convertToGeoJson = (buses?: BusDataResponse = {}) => {
-  const features = Object.keys(buses).map<BusGeoJsonFeature>(key => {
+  // const features = Object.keys(buses).map<BusGeoJsonFeature>(key => {
+
+  // $FlowFixMe For some reason CRA build does not strip the type annotation
+  const features = Object.keys(buses).map(key => {
     const { location, delay, bearing, ...rest } = buses[key];
     const { latitude, longitude } = location;
     const delayMin = secsToMin(delay);
