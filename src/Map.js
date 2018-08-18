@@ -74,8 +74,14 @@ export class Map extends Component<Props, State> {
   selectedVehicleRef: ?string;
 
   componentDidMount() {
-    console.log('App version', process.env.REACT_APP_VERSION);
-    console.log('Built on', process.env.REACT_APP_BUILD_TIME);
+    const {
+      REACT_APP_VERSION,
+      REACT_APP_BUILD_TIME,
+      REACT_APP_MAPBOX_API_TOKEN
+    } = process.env;
+
+    console.log('App version', REACT_APP_VERSION);
+    console.log('Built on', REACT_APP_BUILD_TIME);
 
     this.fetchBuses();
     this.staleDataCheckIntervalId = setInterval(
@@ -90,7 +96,9 @@ export class Map extends Component<Props, State> {
       );
     }
 
-    mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_API_TOKEN;
+    if (REACT_APP_MAPBOX_API_TOKEN) {
+      mapboxgl.accessToken = REACT_APP_MAPBOX_API_TOKEN;
+    }
 
     if (!mapboxgl.supported) {
       console.error('WebGL not supported');
@@ -135,7 +143,6 @@ export class Map extends Component<Props, State> {
 
     if (map) {
       map.remove();
-      this.map = null;
     }
   }
 
@@ -234,7 +241,6 @@ export class Map extends Component<Props, State> {
     this.selectedVehicleRef = null;
     if (this.popup) {
       this.popup.remove();
-      this.popup = null;
     }
   };
 
@@ -324,7 +330,9 @@ export class Map extends Component<Props, State> {
         'text-optional': true,
         'icon-anchor': 'center',
         'text-field': '{journeyPatternRef}',
-        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+        'text-font': (['DIN Offc Pro Medium', 'Arial Unicode MS Bold']: Array<
+          string
+        >),
         'text-size': 14
       },
       paint: {
