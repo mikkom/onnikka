@@ -6,6 +6,8 @@
 
 [libs]
 node_modules/mapbox-gl/flow-typed
+flow-typed
+flow-declarations
 
 [lints]
 all=warn

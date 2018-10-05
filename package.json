@@ -19,9 +19,7 @@
     "flow": "flow"
   },
   "devDependencies": {
-    "flow-bin": "^0.82.0",
-    "gl": "^4.0.4",
-    "sinon": "^6.1.5"
+    "flow-bin": "^0.82.0"
   },
   "browserslist": [
     ">0.2%",

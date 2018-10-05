@@ -1,0 +1,7 @@
+declare module 'gl' {
+  declare export default Function;
+}
+
+declare module 'sinon' {
+  declare export default Function;
+}
