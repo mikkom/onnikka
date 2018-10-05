@@ -1,11 +1,5 @@
 // @flow
-import * as React from 'react';
-import type {
-  BoundingBox,
-  BusGeoJsonFeature,
-  BusDataResponse,
-  LatLng
-} from './types';
+import type { BoundingBox, BusDataResponse, LatLng } from './types';
 
 export const secsToMin = (seconds: number) => Math.round(seconds / 60);
 
