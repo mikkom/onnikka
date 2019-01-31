@@ -110,6 +110,12 @@ export class Map extends Component<Props, State> {
       style: 'mapbox://styles/mikkom/cjd8g272r21822rrwi2p4hhs4'
     });
 
+    // Disable map rotation using right click + drag
+    this.map.dragRotate.disable();
+
+    // Disable map rotation using touch rotation gesture
+    this.map.touchZoomRotate.disableRotation();
+
     this.map.fitBounds(TAMPERE_BBOX, {
       padding: 0,
       animate: false
@@ -330,9 +336,10 @@ export class Map extends Component<Props, State> {
         'text-optional': true,
         'icon-anchor': 'center',
         'text-field': '{journeyPatternRef}',
-        'text-font': (['DIN Offc Pro Medium', 'Arial Unicode MS Bold']: Array<
-          string
-        >),
+        'text-font': ([
+          'DIN Offc Pro Medium',
+          'Arial Unicode MS Bold'
+        ]: Array<string>),
         'text-size': 14
       },
       paint: {
