@@ -13,6 +13,11 @@ export const formatVehicleRef = (vehicleRef?: string = '') => {
   return `${str.charAt(0).toUpperCase()}${str.substr(1)}`;
 };
 
+export const formatSpeed = (speed: string) => {
+  const speedNum = parseFloat(speed);
+  return Number.isNaN(speedNum) ? '-' : speedNum.toFixed(1);
+};
+
 export const formatTime = (timeInSeconds: number) => {
   const minutes = Math.floor(timeInSeconds / 60);
   const seconds = timeInSeconds % 60;

@@ -9,6 +9,7 @@ import {
 import { BUS_API_URL } from './config';
 import {
   convertToGeoJson,
+  formatSpeed,
   formatTime,
   formatVehicleRef,
   getDelayString,
@@ -263,7 +264,7 @@ export class Map extends Component<Props, State> {
       `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
       <br />
       ${getDelayString(delayMin)}<br />
-      Speed ${speed} km/h`
+      Speed ${formatSpeed(speed)} km/h`
     );
   };
 
