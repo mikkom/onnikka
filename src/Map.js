@@ -273,8 +273,9 @@ export class Map extends Component<Props, State> {
     const bus = feature.properties;
     this.removePopup();
     this.selectedVehicleRef = bus.vehicleRef;
-    this.popup = new mapboxgl.Popup({ closeButton: false }).addTo(this.map);
+    this.popup = new mapboxgl.Popup({ closeButton: false });
     this.updatePopup(bus);
+    this.popup.addTo(this.map);
   };
 
   onMapLoaded = () => {
