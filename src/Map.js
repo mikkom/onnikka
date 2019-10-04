@@ -63,9 +63,9 @@ export class Map extends Component<Props, State> {
     dataAge: null
   };
 
-  staleDataCheckIntervalId: any;
-  updateTimeoutId: any;
-  positionWatcherId: any;
+  staleDataCheckIntervalId: IntervalID;
+  updateTimeoutId: TimeoutID;
+  positionWatcherId: number;
   currentPosition: LatLng = { latitude: 0, longitude: 0 };
   map: mapboxgl.Map;
   popup: mapboxgl.Popup;
@@ -97,8 +97,9 @@ export class Map extends Component<Props, State> {
       );
     }
 
-    if (REACT_APP_MAPBOX_API_TOKEN) {
-      mapboxgl.accessToken = REACT_APP_MAPBOX_API_TOKEN;
+    if (!REACT_APP_MAPBOX_API_TOKEN) {
+      console.error('Mapbox API token is not specified');
+      return;
     }
 
     if (!mapboxgl.supported) {
@@ -107,6 +108,7 @@ export class Map extends Component<Props, State> {
     }
 
     this.map = new mapboxgl.Map({
+      accessToken: REACT_APP_MAPBOX_API_TOKEN,
       container: this.el,
       style: 'mapbox://styles/mikkom/cjd8g272r21822rrwi2p4hhs4'
     });
@@ -135,17 +137,14 @@ export class Map extends Component<Props, State> {
 
     if (updateTimeoutId) {
       clearTimeout(updateTimeoutId);
-      this.updateTimeoutId = null;
     }
 
     if (staleDataCheckIntervalId) {
       clearInterval(staleDataCheckIntervalId);
-      this.staleDataCheckIntervalId = null;
     }
 
     if (positionWatcherId) {
       navigator.geolocation.clearWatch(positionWatcherId);
-      this.positionWatcherId = null;
     }
 
     if (map) {
@@ -352,7 +351,7 @@ export class Map extends Component<Props, State> {
     this.map.on('click', 'bus-marker-layer', this.handleSymbolClick);
   };
 
-  resizeMap = (e: any) => {
+  resizeMap = (e: Event) => {
     e.preventDefault();
     this.map && this.map.resize();
   };

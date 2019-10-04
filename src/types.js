@@ -10,7 +10,7 @@ export type BusData = {
   lineRef: string,
   journeyPatternRef: string,
   vehicleRef: string,
-  location: LatLng,
+  location: $Exact<LatLng>,
   bearing: ?number,
   delay: number,
   speed: string

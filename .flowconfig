@@ -11,6 +11,8 @@ flow-declarations
 
 [lints]
 all=warn
+sketchy-null=off
+sketchy-number=off
 
 [options]
 include_warnings=true
