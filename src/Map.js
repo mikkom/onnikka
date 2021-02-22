@@ -1,6 +1,6 @@
 // @flow
 import React, { Component } from 'react';
-import mapboxgl from 'mapbox-gl';
+import mapboxgl from '!mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import {
   TopLeftMapNotification,
@@ -341,35 +341,35 @@ export class Map extends Component<Props, State> {
           'DIN Offc Pro Medium',
           'Arial Unicode MS Bold'
         ]: Array<string>),
-        'text-size': 14
-      },
-      paint: {
-        'text-color': '#FFFFFF'
-      }
-    });
-
-    this.map.on('click', 'bus-marker-layer', this.handleSymbolClick);
-  };
-
-  resizeMap = (e: Event) => {
-    e.preventDefault();
-    this.map && this.map.resize();
-  };
-
-  render() {
-    const { className } = this.props;
-    const { dataAge } = this.state;
-    return (
-      <div ref={this.setMapContainer} className={className}>
-        {dataAge && (
-          <TopLeftMapNotification>{`The bus data is ${formatTime(
-            dataAge
-          )} old`}</TopLeftMapNotification>
-        )}
-        <TopRightMapNotification onClick={this.resizeMap}>
-          {process.env.REACT_APP_BUILD_TIME || 'development'}
-        </TopRightMapNotification>
-      </div>
-    );
+      'text-size': 14
+  },
+  paint: {
+    'text-color': '#FFFFFF'
   }
+});
+
+this.map.on('click', 'bus-marker-layer', this.handleSymbolClick);
+  };
+
+resizeMap = (e: Event) => {
+  e.preventDefault();
+  this.map && this.map.resize();
+};
+
+render() {
+  const { className } = this.props;
+  const { dataAge } = this.state;
+  return (
+    <div ref={this.setMapContainer} className={className}>
+      {dataAge && (
+        <TopLeftMapNotification>{`The bus data is ${formatTime(
+          dataAge
+        )} old`}</TopLeftMapNotification>
+      )}
+      <TopRightMapNotification onClick={this.resizeMap}>
+        {process.env.REACT_APP_BUILD_TIME || 'development'}
+      </TopRightMapNotification>
+    </div>
+  );
+}
 }
