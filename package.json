@@ -4,12 +4,12 @@
   "homepage": ".",
   "private": true,
   "dependencies": {
-    "classnames": "^2.2.5",
+    "classnames": "^2.3.1",
     "mapbox-gl": "^2.1.1",
-    "react": "^16.13.1",
-    "react-dom": "^16.13.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
     "react-scripts": "^4.0.3",
-    "styled-components": "^3.1.6"
+    "styled-components": "^5.3.1"
   },
   "scripts": {
     "start": "react-scripts start",
