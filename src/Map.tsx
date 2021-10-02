@@ -1,4 +1,3 @@
-// @flow
 import { Component, MouseEvent } from 'react';
 import mapboxgl, { GeoJSONSource } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
