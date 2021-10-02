@@ -1,4 +1,4 @@
-import { Component, MouseEvent } from 'react';
+import { MouseEvent, useEffect, useRef, useState } from 'react';
 import mapboxgl, { GeoJSONSource } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import {
@@ -50,43 +50,37 @@ type Props = {
   className: string;
 };
 
-type State = {
-  dataAge: number | null;
-};
+export const Map = ({ className }: Props) => {
+  const [dataAge, setDataAge] = useState<number | null>(null);
 
-export class Map extends Component<Props, State> {
-  state = {
-    dataAge: null,
-  };
+  const staleDataCheckIntervalId = useRef<NodeJS.Timer>();
+  const updateTimeoutId = useRef<NodeJS.Timer>();
+  const positionWatcherId = useRef<number>();
+  const currentPosition = useRef<LatLng>({ latitude: 0, longitude: 0 });
+  const map = useRef<mapboxgl.Map>();
+  const popup = useRef<mapboxgl.Popup>();
+  const el = useRef<HTMLDivElement | null>();
+  const dataTimestamp = useRef<number>();
+  const buses = useRef<BusDataResponse>();
+  const selectedVehicleRef = useRef<string | null>();
 
-  staleDataCheckIntervalId?: NodeJS.Timer;
-  updateTimeoutId?: NodeJS.Timer;
-  positionWatcherId?: number;
-  currentPosition: LatLng = { latitude: 0, longitude: 0 };
-  map?: mapboxgl.Map;
-  popup?: mapboxgl.Popup;
-  el?: HTMLDivElement | null;
-  dataTimestamp?: number;
-  buses?: BusDataResponse;
-  selectedVehicleRef?: string | null;
-
-  componentDidMount() {
+  useEffect(() => {
     const accessToken = import.meta.env.VITE_MAPBOX_API_TOKEN as string;
     const { VITE_APP_VERSION, VITE_APP_BUILD_TIME } = import.meta.env;
 
     console.log('App version', VITE_APP_VERSION);
     console.log('Built on', VITE_APP_BUILD_TIME);
 
-    this.fetchBuses();
-    this.staleDataCheckIntervalId = setInterval(
-      this.checkForStaleData,
+    fetchBuses();
+    staleDataCheckIntervalId.current = setInterval(
+      checkForStaleData,
       STALE_DATA_CHECK_INTERVAL
     );
 
     if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(this.zoomToCurrentPosition);
-      this.positionWatcherId = navigator.geolocation.watchPosition(
-        this.updateCurrentPosition
+      navigator.geolocation.getCurrentPosition(zoomToCurrentPosition);
+      positionWatcherId.current = navigator.geolocation.watchPosition(
+        updateCurrentPosition
       );
     }
 
@@ -100,75 +94,64 @@ export class Map extends Component<Props, State> {
       return;
     }
 
-    this.map = new mapboxgl.Map({
+    map.current = new mapboxgl.Map({
       accessToken,
-      container: this.el!,
+      container: el.current!,
       style: 'mapbox://styles/mikkom/cjd8g272r21822rrwi2p4hhs4',
     });
 
     // Disable map rotation using right click + drag
-    this.map.dragRotate.disable();
+    map.current.dragRotate.disable();
 
     // Disable map rotation using touch rotation gesture
-    this.map.touchZoomRotate.disableRotation();
+    map.current.touchZoomRotate.disableRotation();
 
-    this.map.fitBounds(TAMPERE_BBOX, {
+    map.current.fitBounds(TAMPERE_BBOX, {
       padding: 0,
       animate: false,
     });
 
-    this.map.on('load', this.onMapLoaded);
-  }
+    map.current.on('load', onMapLoaded);
 
-  componentWillUnmount() {
-    const {
-      updateTimeoutId,
-      staleDataCheckIntervalId,
-      positionWatcherId,
-      map,
-    } = this;
+    return () => {
+      if (updateTimeoutId.current) {
+        clearTimeout(updateTimeoutId.current);
+      }
 
-    if (updateTimeoutId) {
-      clearTimeout(updateTimeoutId);
-    }
+      if (staleDataCheckIntervalId.current) {
+        clearInterval(staleDataCheckIntervalId.current);
+      }
 
-    if (staleDataCheckIntervalId) {
-      clearInterval(staleDataCheckIntervalId);
-    }
+      if (positionWatcherId.current) {
+        navigator.geolocation.clearWatch(positionWatcherId.current);
+      }
 
-    if (positionWatcherId) {
-      navigator.geolocation.clearWatch(positionWatcherId);
-    }
+      map.current?.remove();
+    };
+  }, []);
 
-    if (map) {
-      map.remove();
-    }
-  }
-
-  checkForStaleData = () => {
-    const { dataTimestamp } = this;
-    if (dataTimestamp) {
-      const { dataAge: prevDataAge } = this.state;
-      const dataAgeMs = Date.now() - dataTimestamp;
-      const dataAge = Math.round(dataAgeMs / 1000);
-      if (dataAge >= STALE_DATA_THRESHOLD && prevDataAge !== dataAge) {
-        this.setState({ dataAge });
-      } else if (dataAge < STALE_DATA_THRESHOLD && prevDataAge) {
-        this.setState({ dataAge: null });
+  const checkForStaleData = () => {
+    if (dataTimestamp.current) {
+      const dataAgeMs = Date.now() - dataTimestamp.current;
+      const newDataAge = Math.round(dataAgeMs / 1000);
+      if (newDataAge >= STALE_DATA_THRESHOLD && dataAge !== newDataAge) {
+        setDataAge(newDataAge);
+      } else if (newDataAge < STALE_DATA_THRESHOLD && dataAge) {
+        setDataAge(null);
       }
     }
   };
 
-  zoomToCurrentPosition = ({ coords }: GeolocationPosition) => {
+  const zoomToCurrentPosition = ({ coords }: GeolocationPosition) => {
     if (isWithinBoundingBox(coords, TAMPERE_BBOX)) {
       const { latitude, longitude } = coords;
-      this.map?.flyTo({ center: [longitude, latitude], zoom: 14 });
+      map.current?.flyTo({ center: [longitude, latitude], zoom: 14 });
     }
   };
 
-  updateCurrentPosition = ({ coords }: GeolocationPosition) => {
-    this.currentPosition = coords;
-    const source = this.map?.getSource(
+  const updateCurrentPosition = ({ coords }: GeolocationPosition) => {
+    currentPosition.current = coords;
+    const source = map.current?.getSource(
       CURRENT_POSITION_SOURCE_NAME
     ) as GeoJSONSource;
     if (!source) {
@@ -180,35 +163,34 @@ export class Map extends Component<Props, State> {
     source.setData(geoJson as unknown as string);
   };
 
-  updateBuses = (buses: BusDataResponse) => {
-    this.dataTimestamp = Date.now();
-    if (this.buses) {
-      Object.keys(buses).forEach((key) => {
-        const currentData = buses[key];
-        const previousData = this.buses && this.buses[key];
+  const updateBuses = (newBuses: BusDataResponse) => {
+    dataTimestamp.current = Date.now();
+    if (buses.current) {
+      Object.keys(newBuses).forEach((key) => {
+        const currentData = newBuses[key];
+        const previousData = buses.current?.[key];
         if (parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD) {
           // Speed is too low, keep the old bearing if available or set as null
           currentData.bearing = previousData && previousData.bearing;
         }
       });
     }
-    this.buses = buses;
-    const source = this.map?.getSource(
+    buses.current = newBuses;
+    const source = map.current?.getSource(
       BUS_MARKER_SOURCE_NAME
     ) as GeoJSONSource | null;
     if (!source) {
       // Source is not ready yet
       return;
     }
-    const geoJson = convertToGeoJson(buses);
+    const geoJson = convertToGeoJson(buses.current);
     // FIXME
     source.setData(geoJson as unknown as string);
 
-    const { selectedVehicleRef, popup } = this;
-    if (selectedVehicleRef && popup) {
-      const bus = buses[selectedVehicleRef];
+    if (selectedVehicleRef.current && popup.current) {
+      const bus = buses.current[selectedVehicleRef.current];
       if (bus) {
-        this.updatePopup({
+        updatePopup({
           ...bus,
           ...bus.location,
           delayMin: secsToMin(bus.delay),
@@ -217,39 +199,37 @@ export class Map extends Component<Props, State> {
     }
   };
 
-  restartUpdateTimer = () => {
-    this.updateTimeoutId = setTimeout(this.fetchBuses, UPDATE_INTERVAL);
+  const restartUpdateTimer = () => {
+    updateTimeoutId.current = setTimeout(fetchBuses, UPDATE_INTERVAL);
   };
 
-  fetchBuses = () => {
+  const fetchBuses = () => {
     if (document.hidden) {
       // Let's not hit the API when the app is hidden
-      this.restartUpdateTimer();
+      restartUpdateTimer();
       return;
     }
 
     fetch(BUS_API_URL)
       .then((response) => response.json())
-      .then(this.updateBuses)
-      .then(this.restartUpdateTimer)
+      .then(updateBuses)
+      .then(restartUpdateTimer)
       .catch((err) => {
         console.error(err);
-        this.restartUpdateTimer();
+        restartUpdateTimer();
       });
   };
 
-  setMapContainer = (el: HTMLDivElement | null) => {
-    this.el = el;
+  const setMapContainer = (e: HTMLDivElement | null) => {
+    el.current = e;
   };
 
-  removePopup = () => {
-    this.selectedVehicleRef = null;
-    if (this.popup) {
-      this.popup.remove();
-    }
+  const removePopup = () => {
+    selectedVehicleRef.current = null;
+    popup.current?.remove();
   };
 
-  updatePopup = ({
+  const updatePopup = ({
     latitude,
     longitude,
     journeyPatternRef,
@@ -258,7 +238,7 @@ export class Map extends Component<Props, State> {
     speed,
   }: PopupData) => {
     const vehicle = formatVehicleRef(vehicleRef);
-    this.popup?.setLngLat([longitude, latitude]).setHTML(
+    popup.current?.setLngLat([longitude, latitude]).setHTML(
       `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
       <br />
       ${getDelayString(delayMin)}<br />
@@ -266,35 +246,35 @@ export class Map extends Component<Props, State> {
     );
   };
 
-  handleSymbolClick = (e: any) => {
+  const handleSymbolClick = (e: any) => {
     const feature = e.features[0];
     const bus = feature.properties;
-    this.removePopup();
-    this.selectedVehicleRef = bus.vehicleRef;
-    this.popup = new mapboxgl.Popup({ closeButton: false });
-    this.updatePopup(bus);
-    if (this.map) {
-      this.popup.addTo(this.map);
+    removePopup();
+    selectedVehicleRef.current = bus.vehicleRef;
+    popup.current = new mapboxgl.Popup({ closeButton: false });
+    updatePopup(bus);
+    if (map.current) {
+      popup.current.addTo(map.current);
     }
   };
 
-  onMapLoaded = () => {
-    if (!this.map) {
+  const onMapLoaded = () => {
+    if (!map.current) {
       return;
     }
 
-    this.map.addSource(BUS_MARKER_SOURCE_NAME, {
+    map.current.addSource(BUS_MARKER_SOURCE_NAME, {
       type: 'geojson',
-      data: convertToGeoJson(this.buses),
+      data: convertToGeoJson(buses.current),
     });
 
-    this.map.addSource(CURRENT_POSITION_SOURCE_NAME, {
+    map.current.addSource(CURRENT_POSITION_SOURCE_NAME, {
       type: 'geojson',
       // FIXME
-      data: convertPointToGeoJson(this.currentPosition) as unknown as string,
+      data: convertPointToGeoJson(currentPosition.current) as unknown as string,
     });
 
-    this.map.addLayer({
+    map.current.addLayer({
       id: 'current-position-layer',
       type: 'symbol',
       source: CURRENT_POSITION_SOURCE_NAME,
@@ -307,7 +287,7 @@ export class Map extends Component<Props, State> {
       },
     });
 
-    this.map.addLayer({
+    map.current.addLayer({
       id: 'bus-marker-layer',
       type: 'symbol',
       source: BUS_MARKER_SOURCE_NAME,
@@ -351,28 +331,24 @@ export class Map extends Component<Props, State> {
       },
     });
 
-    this.map.on('click', 'bus-marker-layer', this.handleSymbolClick);
+    map.current.on('click', 'bus-marker-layer', handleSymbolClick);
   };
 
-  resizeMap = (e: MouseEvent<HTMLDivElement>) => {
+  const resizeMap = (e: MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
-    this.map && this.map.resize();
+    map.current?.resize();
   };
 
-  render() {
-    const { className } = this.props;
-    const { dataAge } = this.state;
-    return (
-      <div ref={this.setMapContainer} className={className}>
-        {dataAge && (
-          <TopLeftMapNotification>{`The bus data is ${formatTime(
-            dataAge
-          )} old`}</TopLeftMapNotification>
-        )}
-        <TopRightMapNotification onClick={this.resizeMap}>
-          {import.meta.env.VITE_APP_BUILD_TIME || 'development'}
-        </TopRightMapNotification>
-      </div>
-    );
-  }
-}
+  return (
+    <div ref={setMapContainer} className={className}>
+      {dataAge && (
+        <TopLeftMapNotification>{`The bus data is ${formatTime(
+          dataAge
+        )} old`}</TopLeftMapNotification>
+      )}
+      <TopRightMapNotification onClick={resizeMap}>
+        {import.meta.env.VITE_APP_BUILD_TIME || 'development'}
+      </TopRightMapNotification>
+    </div>
+  );
+};
