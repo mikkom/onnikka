@@ -4,7 +4,7 @@ Web app for displaying real-time public transportation data in Tampere area.
 
 ## Attributions
 
-This project was bootstrapped with [Create React App](https://github.com/facebookincubator/create-react-app).
+This project was bootstrapped with [Vite](https://vitejs.dev).
 
 App icon made by [Scott de Jonge](https://www.flaticon.com/authors/scott-de-jonge) from [www.flaticon.com](https://www.flaticon.com/) is licensed by [CC 3.0 BY](http://creativecommons.org/licenses/by/3.0/).
 
