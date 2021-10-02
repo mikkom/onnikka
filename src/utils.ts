@@ -1,14 +1,8 @@
-// @flow
-import type {
-  BoundingBox,
-  BusDataResponse,
-  BusGeoJsonFeature,
-  LatLng
-} from './types';
+import type { BusDataResponse, BusGeoJsonFeature, LatLng } from './types';
 
 export const secsToMin = (seconds: number) => Math.round(seconds / 60);
 
-export const formatVehicleRef = (vehicleRef?: string = '') => {
+export const formatVehicleRef = (vehicleRef: string = '') => {
   const str = vehicleRef.trim().replace('_', ' ');
   return `${str.charAt(0).toUpperCase()}${str.substr(1)}`;
 };
@@ -26,7 +20,7 @@ export const formatTime = (timeInSeconds: number) => {
   return [minPart, secPart].filter(Boolean).join(' ');
 };
 
-const getBusStatus = delayMin => {
+const getBusStatus = (delayMin: number) => {
   if (delayMin > 1) {
     return 'LATE';
   } else if (delayMin < -1) {
@@ -46,8 +40,10 @@ export const getDelayString = (delayMin: number) => {
   }
 };
 
-export const convertToGeoJson = (buses?: BusDataResponse = {}) => {
-  const features = Object.keys(buses).map<BusGeoJsonFeature>(key => {
+export const convertToGeoJson = (
+  buses: BusDataResponse = {}
+): GeoJSON.FeatureCollection<GeoJSON.Geometry> => {
+  const features = Object.keys(buses).map<BusGeoJsonFeature>((key) => {
     const { location, delay, bearing, ...rest } = buses[key];
     const { latitude, longitude } = location;
     const delayMin = secsToMin(delay);
@@ -55,7 +51,7 @@ export const convertToGeoJson = (buses?: BusDataResponse = {}) => {
     return {
       geometry: {
         type: 'Point',
-        coordinates: [longitude, latitude]
+        coordinates: [longitude, latitude],
       },
       type: 'Feature',
       properties: {
@@ -65,25 +61,28 @@ export const convertToGeoJson = (buses?: BusDataResponse = {}) => {
         latitude,
         longitude,
         delayMin,
-        status
-      }
+        status,
+      },
     };
   });
 
   return {
     type: 'FeatureCollection',
-    features
+    features,
   };
 };
 
-export const convertPointToGeoJson = ({ latitude, longitude }: LatLng) => ({
+export const convertPointToGeoJson = ({
+  latitude,
+  longitude,
+}: LatLng): GeoJSON.Geometry => ({
   type: 'Point',
-  coordinates: [longitude, latitude]
+  coordinates: [longitude, latitude],
 });
 
 export const isWithinBoundingBox = (
   { latitude, longitude }: LatLng,
-  [west, south, east, north]: BoundingBox
+  [west, south, east, north]: [number, number, number, number]
 ) =>
   latitude >= south &&
   latitude <= north &&

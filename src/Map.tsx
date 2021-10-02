@@ -1,10 +1,10 @@
 // @flow
-import React, { Component } from 'react';
-import mapboxgl from '!mapbox-gl';
+import React, { Component, MouseEvent } from 'react';
+import mapboxgl, { GeoJSONSource } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import {
   TopLeftMapNotification,
-  TopRightMapNotification
+  TopRightMapNotification,
 } from './MapNotification';
 import { BUS_API_URL } from './config';
 import {
@@ -15,7 +15,7 @@ import {
   getDelayString,
   secsToMin,
   convertPointToGeoJson,
-  isWithinBoundingBox
+  isWithinBoundingBox,
 } from './utils';
 import type { BusDataResponse, LatLng } from './types';
 
@@ -23,7 +23,7 @@ import type { BusDataResponse, LatLng } from './types';
 const COLOR_THEME = {
   LATE: '#d32d7d',
   EARLY: '#009f7e',
-  ON_TIME: '#0079c2'
+  ON_TIME: '#0079c2',
 };
 
 const UPDATE_INTERVAL = 2000; // ms
@@ -34,55 +34,49 @@ const RELIABLE_SPEED_THRESHOLD = 1; // km/h
 const BUS_MARKER_SOURCE_NAME = 'bus-marker-source';
 const CURRENT_POSITION_SOURCE_NAME = 'current-location';
 
-const TAMPERE_BBOX = [
-  23.647643287532077,
-  61.37612570456474,
-  23.905361244117643,
-  61.58820555151834
+const TAMPERE_BBOX: [number, number, number, number] = [
+  23.647643287532077, 61.37612570456474, 23.905361244117643, 61.58820555151834,
 ];
 
 type PopupData = {
-  latitude: number,
-  longitude: number,
-  journeyPatternRef: string,
-  vehicleRef: string,
-  delayMin: number,
-  speed: string
+  latitude: number;
+  longitude: number;
+  journeyPatternRef: string;
+  vehicleRef: string;
+  delayMin: number;
+  speed: string;
 };
 
 type Props = {
-  className: string
+  className: string;
 };
 
 type State = {
-  dataAge: ?number
+  dataAge: number | null;
 };
 
 export class Map extends Component<Props, State> {
   state = {
-    dataAge: null
+    dataAge: null,
   };
 
-  staleDataCheckIntervalId: IntervalID;
-  updateTimeoutId: TimeoutID;
-  positionWatcherId: number;
+  staleDataCheckIntervalId?: NodeJS.Timer;
+  updateTimeoutId?: NodeJS.Timer;
+  positionWatcherId?: number;
   currentPosition: LatLng = { latitude: 0, longitude: 0 };
-  map: mapboxgl.Map;
-  popup: mapboxgl.Popup;
-  el: ?HTMLDivElement;
-  dataTimestamp: ?number;
-  buses: BusDataResponse;
-  selectedVehicleRef: ?string;
+  map?: mapboxgl.Map;
+  popup?: mapboxgl.Popup;
+  el?: HTMLDivElement | null;
+  dataTimestamp?: number;
+  buses?: BusDataResponse;
+  selectedVehicleRef?: string | null;
 
   componentDidMount() {
-    const {
-      REACT_APP_VERSION,
-      REACT_APP_BUILD_TIME,
-      REACT_APP_MAPBOX_API_TOKEN
-    } = process.env;
+    const accessToken = import.meta.env.VITE_MAPBOX_API_TOKEN as string;
+    const { VITE_APP_VERSION, VITE_APP_BUILD_TIME } = import.meta.env;
 
-    console.log('App version', REACT_APP_VERSION);
-    console.log('Built on', REACT_APP_BUILD_TIME);
+    console.log('App version', VITE_APP_VERSION);
+    console.log('Built on', VITE_APP_BUILD_TIME);
 
     this.fetchBuses();
     this.staleDataCheckIntervalId = setInterval(
@@ -97,7 +91,7 @@ export class Map extends Component<Props, State> {
       );
     }
 
-    if (!REACT_APP_MAPBOX_API_TOKEN) {
+    if (!accessToken) {
       console.error('Mapbox API token is not specified');
       return;
     }
@@ -108,9 +102,9 @@ export class Map extends Component<Props, State> {
     }
 
     this.map = new mapboxgl.Map({
-      accessToken: REACT_APP_MAPBOX_API_TOKEN,
-      container: this.el,
-      style: 'mapbox://styles/mikkom/cjd8g272r21822rrwi2p4hhs4'
+      accessToken,
+      container: this.el!,
+      style: 'mapbox://styles/mikkom/cjd8g272r21822rrwi2p4hhs4',
     });
 
     // Disable map rotation using right click + drag
@@ -121,7 +115,7 @@ export class Map extends Component<Props, State> {
 
     this.map.fitBounds(TAMPERE_BBOX, {
       padding: 0,
-      animate: false
+      animate: false,
     });
 
     this.map.on('load', this.onMapLoaded);
@@ -132,7 +126,7 @@ export class Map extends Component<Props, State> {
       updateTimeoutId,
       staleDataCheckIntervalId,
       positionWatcherId,
-      map
+      map,
     } = this;
 
     if (updateTimeoutId) {
@@ -166,30 +160,33 @@ export class Map extends Component<Props, State> {
     }
   };
 
-  zoomToCurrentPosition = ({ coords }: Position) => {
+  zoomToCurrentPosition = ({ coords }: GeolocationPosition) => {
     if (isWithinBoundingBox(coords, TAMPERE_BBOX)) {
       const { latitude, longitude } = coords;
-      this.map.flyTo({ center: [longitude, latitude], zoom: 14 });
+      this.map?.flyTo({ center: [longitude, latitude], zoom: 14 });
     }
   };
 
-  updateCurrentPosition = ({ coords }: Position) => {
+  updateCurrentPosition = ({ coords }: GeolocationPosition) => {
     this.currentPosition = coords;
-    const source = this.map.getSource(CURRENT_POSITION_SOURCE_NAME);
+    const source = this.map?.getSource(
+      CURRENT_POSITION_SOURCE_NAME
+    ) as GeoJSONSource;
     if (!source) {
       // Source is not ready yet
       return;
     }
     const geoJson = convertPointToGeoJson(coords);
-    source.setData(geoJson);
+    // FIXME
+    source.setData(geoJson as unknown as string);
   };
 
   updateBuses = (buses: BusDataResponse) => {
     this.dataTimestamp = Date.now();
     if (this.buses) {
-      Object.keys(buses).forEach(key => {
+      Object.keys(buses).forEach((key) => {
         const currentData = buses[key];
-        const previousData = this.buses[key];
+        const previousData = this.buses && this.buses[key];
         if (parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD) {
           // Speed is too low, keep the old bearing if available or set as null
           currentData.bearing = previousData && previousData.bearing;
@@ -197,13 +194,16 @@ export class Map extends Component<Props, State> {
       });
     }
     this.buses = buses;
-    const source = this.map.getSource(BUS_MARKER_SOURCE_NAME);
+    const source = this.map?.getSource(
+      BUS_MARKER_SOURCE_NAME
+    ) as GeoJSONSource | null;
     if (!source) {
       // Source is not ready yet
       return;
     }
     const geoJson = convertToGeoJson(buses);
-    source.setData(geoJson);
+    // FIXME
+    source.setData(geoJson as unknown as string);
 
     const { selectedVehicleRef, popup } = this;
     if (selectedVehicleRef && popup) {
@@ -212,7 +212,7 @@ export class Map extends Component<Props, State> {
         this.updatePopup({
           ...bus,
           ...bus.location,
-          delayMin: secsToMin(bus.delay)
+          delayMin: secsToMin(bus.delay),
         });
       }
     }
@@ -230,16 +230,16 @@ export class Map extends Component<Props, State> {
     }
 
     fetch(BUS_API_URL)
-      .then(response => response.json())
+      .then((response) => response.json())
       .then(this.updateBuses)
       .then(this.restartUpdateTimer)
-      .catch(err => {
+      .catch((err) => {
         console.error(err);
         this.restartUpdateTimer();
       });
   };
 
-  setMapContainer = (el: ?HTMLDivElement) => {
+  setMapContainer = (el: HTMLDivElement | null) => {
     this.el = el;
   };
 
@@ -256,10 +256,10 @@ export class Map extends Component<Props, State> {
     journeyPatternRef,
     vehicleRef,
     delayMin,
-    speed
+    speed,
   }: PopupData) => {
     const vehicle = formatVehicleRef(vehicleRef);
-    this.popup.setLngLat([longitude, latitude]).setHTML(
+    this.popup?.setLngLat([longitude, latitude]).setHTML(
       `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
       <br />
       ${getDelayString(delayMin)}<br />
@@ -274,18 +274,25 @@ export class Map extends Component<Props, State> {
     this.selectedVehicleRef = bus.vehicleRef;
     this.popup = new mapboxgl.Popup({ closeButton: false });
     this.updatePopup(bus);
-    this.popup.addTo(this.map);
+    if (this.map) {
+      this.popup.addTo(this.map);
+    }
   };
 
   onMapLoaded = () => {
+    if (!this.map) {
+      return;
+    }
+
     this.map.addSource(BUS_MARKER_SOURCE_NAME, {
       type: 'geojson',
-      data: convertToGeoJson(this.buses)
+      data: convertToGeoJson(this.buses),
     });
 
     this.map.addSource(CURRENT_POSITION_SOURCE_NAME, {
       type: 'geojson',
-      data: convertPointToGeoJson(this.currentPosition)
+      // FIXME
+      data: convertPointToGeoJson(this.currentPosition) as unknown as string,
     });
 
     this.map.addLayer({
@@ -297,8 +304,8 @@ export class Map extends Component<Props, State> {
         'icon-size': 0.85,
         'icon-allow-overlap': true,
         'icon-ignore-placement': false, // default
-        'icon-anchor': 'center'
-      }
+        'icon-anchor': 'center',
+      },
     });
 
     this.map.addLayer({
@@ -316,7 +323,7 @@ export class Map extends Component<Props, State> {
             'stationary-bus-late',
             'EARLY',
             'stationary-bus-early',
-            /* default */ 'stationary-bus'
+            /* default */ 'stationary-bus',
           ],
           [
             'match',
@@ -325,8 +332,8 @@ export class Map extends Component<Props, State> {
             'bus-marker-late',
             'EARLY',
             'bus-marker-early',
-            /* default */ 'bus-marker'
-          ]
+            /* default */ 'bus-marker',
+          ],
         ],
         'icon-rotate': { type: 'identity', property: 'markerRotation' },
         'icon-size': 0.85,
@@ -337,39 +344,36 @@ export class Map extends Component<Props, State> {
         'text-optional': true,
         'icon-anchor': 'center',
         'text-field': '{journeyPatternRef}',
-        'text-font': ([
-          'DIN Offc Pro Medium',
-          'Arial Unicode MS Bold'
-        ]: Array<string>),
-      'text-size': 14
-  },
-  paint: {
-    'text-color': '#FFFFFF'
-  }
-});
+        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+        'text-size': 14,
+      },
+      paint: {
+        'text-color': '#FFFFFF',
+      },
+    });
 
-this.map.on('click', 'bus-marker-layer', this.handleSymbolClick);
+    this.map.on('click', 'bus-marker-layer', this.handleSymbolClick);
   };
 
-resizeMap = (e: Event) => {
-  e.preventDefault();
-  this.map && this.map.resize();
-};
+  resizeMap = (e: MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    this.map && this.map.resize();
+  };
 
-render() {
-  const { className } = this.props;
-  const { dataAge } = this.state;
-  return (
-    <div ref={this.setMapContainer} className={className}>
-      {dataAge && (
-        <TopLeftMapNotification>{`The bus data is ${formatTime(
-          dataAge
-        )} old`}</TopLeftMapNotification>
-      )}
-      <TopRightMapNotification onClick={this.resizeMap}>
-        {process.env.REACT_APP_BUILD_TIME || 'development'}
-      </TopRightMapNotification>
-    </div>
-  );
-}
+  render() {
+    const { className } = this.props;
+    const { dataAge } = this.state;
+    return (
+      <div ref={this.setMapContainer} className={className}>
+        {dataAge && (
+          <TopLeftMapNotification>{`The bus data is ${formatTime(
+            dataAge
+          )} old`}</TopLeftMapNotification>
+        )}
+        <TopRightMapNotification onClick={this.resizeMap}>
+          {import.meta.env.VITE_APP_BUILD_TIME || 'development'}
+        </TopRightMapNotification>
+      </div>
+    );
+  }
 }
