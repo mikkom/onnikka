@@ -53,16 +53,140 @@ type Props = {
 export const Map = ({ className }: Props) => {
   const [dataAge, setDataAge] = useState<number | null>(null);
 
-  const staleDataCheckIntervalId = useRef<NodeJS.Timer>();
-  const updateTimeoutId = useRef<NodeJS.Timer>();
-  const positionWatcherId = useRef<number>();
   const currentPosition = useRef<LatLng>({ latitude: 0, longitude: 0 });
   const map = useRef<mapboxgl.Map>();
   const popup = useRef<mapboxgl.Popup>();
   const el = useRef<HTMLDivElement | null>();
-  const dataTimestamp = useRef<number>();
   const buses = useRef<BusDataResponse>();
   const selectedVehicleRef = useRef<string | null>();
+
+  useEffect(() => {
+    let updateTimeoutId: NodeJS.Timer;
+    let dataTimestamp: number;
+
+    const fetchBuses = () => {
+      const restartUpdateTimer = () => {
+        updateTimeoutId = setTimeout(fetchBuses, UPDATE_INTERVAL);
+      };
+
+      if (document.hidden) {
+        // Let's not hit the API when the app is hidden
+        restartUpdateTimer();
+        return;
+      }
+
+      const updateBuses = (newBuses: BusDataResponse) => {
+        dataTimestamp = Date.now();
+        if (buses.current) {
+          Object.keys(newBuses).forEach((key) => {
+            const currentData = newBuses[key];
+            const previousData = buses.current?.[key];
+            if (parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD) {
+              // Speed is too low, keep the old bearing if available or set as null
+              currentData.bearing = previousData && previousData.bearing;
+            }
+          });
+        }
+        buses.current = newBuses;
+        const source = map.current?.getSource(
+          BUS_MARKER_SOURCE_NAME
+        ) as GeoJSONSource | null;
+        if (!source) {
+          // Source is not ready yet
+          return;
+        }
+        const geoJson = convertToGeoJson(buses.current);
+        // FIXME
+        source.setData(geoJson as unknown as string);
+
+        if (selectedVehicleRef.current && popup.current) {
+          const bus = buses.current[selectedVehicleRef.current];
+          if (bus) {
+            updatePopup({
+              ...bus,
+              ...bus.location,
+              delayMin: secsToMin(bus.delay),
+            });
+          }
+        }
+      };
+
+      fetch(BUS_API_URL)
+        .then((response) => response.json())
+        .then(updateBuses)
+        .then(restartUpdateTimer)
+        .catch((err) => {
+          console.error(err);
+          restartUpdateTimer();
+        });
+    };
+
+    fetchBuses();
+
+    const checkForStaleData = () => {
+      if (dataTimestamp) {
+        const dataAgeMs = Date.now() - dataTimestamp;
+        const newDataAge = Math.round(dataAgeMs / 1000);
+        if (newDataAge >= STALE_DATA_THRESHOLD && dataAge !== newDataAge) {
+          setDataAge(newDataAge);
+        } else if (newDataAge < STALE_DATA_THRESHOLD && dataAge) {
+          setDataAge(null);
+        }
+      }
+    };
+
+    const staleDataCheckIntervalId = setInterval(
+      checkForStaleData,
+      STALE_DATA_CHECK_INTERVAL
+    );
+
+    return () => {
+      if (updateTimeoutId) {
+        clearTimeout(updateTimeoutId);
+      }
+
+      if (staleDataCheckIntervalId) {
+        clearInterval(staleDataCheckIntervalId);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const zoomToCurrentPosition = ({ coords }: GeolocationPosition) => {
+      if (isWithinBoundingBox(coords, TAMPERE_BBOX)) {
+        const { latitude, longitude } = coords;
+        map.current?.flyTo({ center: [longitude, latitude], zoom: 14 });
+      }
+    };
+
+    const updateCurrentPosition = ({ coords }: GeolocationPosition) => {
+      currentPosition.current = coords;
+      const source = map.current?.getSource(
+        CURRENT_POSITION_SOURCE_NAME
+      ) as GeoJSONSource;
+      if (!source) {
+        // Source is not ready yet
+        return;
+      }
+      const geoJson = convertPointToGeoJson(coords);
+      // FIXME
+      source.setData(geoJson as unknown as string);
+    };
+
+    let positionWatcherId: number;
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(zoomToCurrentPosition);
+      positionWatcherId = navigator.geolocation.watchPosition(
+        updateCurrentPosition
+      );
+    }
+
+    return () => {
+      if (positionWatcherId) {
+        navigator.geolocation.clearWatch(positionWatcherId);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const accessToken = import.meta.env.VITE_MAPBOX_API_TOKEN as string;
@@ -70,19 +194,6 @@ export const Map = ({ className }: Props) => {
 
     console.log('App version', VITE_APP_VERSION);
     console.log('Built on', VITE_APP_BUILD_TIME);
-
-    fetchBuses();
-    staleDataCheckIntervalId.current = setInterval(
-      checkForStaleData,
-      STALE_DATA_CHECK_INTERVAL
-    );
-
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(zoomToCurrentPosition);
-      positionWatcherId.current = navigator.geolocation.watchPosition(
-        updateCurrentPosition
-      );
-    }
 
     if (!accessToken) {
       console.error('Mapbox API token is not specified');
@@ -111,122 +222,93 @@ export const Map = ({ className }: Props) => {
       animate: false,
     });
 
+    const onMapLoaded = () => {
+      if (!map.current) {
+        return;
+      }
+
+      map.current.addSource(BUS_MARKER_SOURCE_NAME, {
+        type: 'geojson',
+        data: convertToGeoJson(buses.current),
+      });
+
+      map.current.addSource(CURRENT_POSITION_SOURCE_NAME, {
+        type: 'geojson',
+        // FIXME
+        data: convertPointToGeoJson(
+          currentPosition.current
+        ) as unknown as string,
+      });
+
+      map.current.addLayer({
+        id: 'current-position-layer',
+        type: 'symbol',
+        source: CURRENT_POSITION_SOURCE_NAME,
+        layout: {
+          'icon-image': 'current-location',
+          'icon-size': 0.85,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': false, // default
+          'icon-anchor': 'center',
+        },
+      });
+
+      map.current.addLayer({
+        id: 'bus-marker-layer',
+        type: 'symbol',
+        source: BUS_MARKER_SOURCE_NAME,
+        layout: {
+          'icon-image': [
+            'case',
+            ['==', ['get', 'bearing'], null],
+            [
+              'match',
+              ['get', 'status'],
+              'LATE',
+              'stationary-bus-late',
+              'EARLY',
+              'stationary-bus-early',
+              /* default */ 'stationary-bus',
+            ],
+            [
+              'match',
+              ['get', 'status'],
+              'LATE',
+              'bus-marker-late',
+              'EARLY',
+              'bus-marker-early',
+              /* default */ 'bus-marker',
+            ],
+          ],
+          'icon-rotate': { type: 'identity', property: 'markerRotation' },
+          'icon-size': 0.85,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': false, // default
+          'text-allow-overlap': false, // default
+          'text-ignore-placement': false, // default
+          'text-optional': true,
+          'icon-anchor': 'center',
+          'text-field': '{journeyPatternRef}',
+          'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+          'text-size': 14,
+        },
+        paint: {
+          'text-color': '#FFFFFF',
+        },
+      });
+
+      map.current.on('click', 'bus-marker-layer', handleSymbolClick);
+    };
+
     map.current.on('load', onMapLoaded);
 
     return () => {
-      if (updateTimeoutId.current) {
-        clearTimeout(updateTimeoutId.current);
-      }
-
-      if (staleDataCheckIntervalId.current) {
-        clearInterval(staleDataCheckIntervalId.current);
-      }
-
-      if (positionWatcherId.current) {
-        navigator.geolocation.clearWatch(positionWatcherId.current);
-      }
-
       map.current?.remove();
     };
   }, []);
 
-  const checkForStaleData = () => {
-    if (dataTimestamp.current) {
-      const dataAgeMs = Date.now() - dataTimestamp.current;
-      const newDataAge = Math.round(dataAgeMs / 1000);
-      if (newDataAge >= STALE_DATA_THRESHOLD && dataAge !== newDataAge) {
-        setDataAge(newDataAge);
-      } else if (newDataAge < STALE_DATA_THRESHOLD && dataAge) {
-        setDataAge(null);
-      }
-    }
-  };
-
-  const zoomToCurrentPosition = ({ coords }: GeolocationPosition) => {
-    if (isWithinBoundingBox(coords, TAMPERE_BBOX)) {
-      const { latitude, longitude } = coords;
-      map.current?.flyTo({ center: [longitude, latitude], zoom: 14 });
-    }
-  };
-
-  const updateCurrentPosition = ({ coords }: GeolocationPosition) => {
-    currentPosition.current = coords;
-    const source = map.current?.getSource(
-      CURRENT_POSITION_SOURCE_NAME
-    ) as GeoJSONSource;
-    if (!source) {
-      // Source is not ready yet
-      return;
-    }
-    const geoJson = convertPointToGeoJson(coords);
-    // FIXME
-    source.setData(geoJson as unknown as string);
-  };
-
-  const updateBuses = (newBuses: BusDataResponse) => {
-    dataTimestamp.current = Date.now();
-    if (buses.current) {
-      Object.keys(newBuses).forEach((key) => {
-        const currentData = newBuses[key];
-        const previousData = buses.current?.[key];
-        if (parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD) {
-          // Speed is too low, keep the old bearing if available or set as null
-          currentData.bearing = previousData && previousData.bearing;
-        }
-      });
-    }
-    buses.current = newBuses;
-    const source = map.current?.getSource(
-      BUS_MARKER_SOURCE_NAME
-    ) as GeoJSONSource | null;
-    if (!source) {
-      // Source is not ready yet
-      return;
-    }
-    const geoJson = convertToGeoJson(buses.current);
-    // FIXME
-    source.setData(geoJson as unknown as string);
-
-    if (selectedVehicleRef.current && popup.current) {
-      const bus = buses.current[selectedVehicleRef.current];
-      if (bus) {
-        updatePopup({
-          ...bus,
-          ...bus.location,
-          delayMin: secsToMin(bus.delay),
-        });
-      }
-    }
-  };
-
-  const restartUpdateTimer = () => {
-    updateTimeoutId.current = setTimeout(fetchBuses, UPDATE_INTERVAL);
-  };
-
-  const fetchBuses = () => {
-    if (document.hidden) {
-      // Let's not hit the API when the app is hidden
-      restartUpdateTimer();
-      return;
-    }
-
-    fetch(BUS_API_URL)
-      .then((response) => response.json())
-      .then(updateBuses)
-      .then(restartUpdateTimer)
-      .catch((err) => {
-        console.error(err);
-        restartUpdateTimer();
-      });
-  };
-
-  const setMapContainer = (e: HTMLDivElement | null) => {
-    el.current = e;
-  };
-
-  const removePopup = () => {
-    selectedVehicleRef.current = null;
-    popup.current?.remove();
+  const setMapContainer = (element: HTMLDivElement | null) => {
+    el.current = element;
   };
 
   const updatePopup = ({
@@ -249,89 +331,13 @@ export const Map = ({ className }: Props) => {
   const handleSymbolClick = (e: any) => {
     const feature = e.features[0];
     const bus = feature.properties;
-    removePopup();
     selectedVehicleRef.current = bus.vehicleRef;
+    popup.current?.remove();
     popup.current = new mapboxgl.Popup({ closeButton: false });
     updatePopup(bus);
     if (map.current) {
       popup.current.addTo(map.current);
     }
-  };
-
-  const onMapLoaded = () => {
-    if (!map.current) {
-      return;
-    }
-
-    map.current.addSource(BUS_MARKER_SOURCE_NAME, {
-      type: 'geojson',
-      data: convertToGeoJson(buses.current),
-    });
-
-    map.current.addSource(CURRENT_POSITION_SOURCE_NAME, {
-      type: 'geojson',
-      // FIXME
-      data: convertPointToGeoJson(currentPosition.current) as unknown as string,
-    });
-
-    map.current.addLayer({
-      id: 'current-position-layer',
-      type: 'symbol',
-      source: CURRENT_POSITION_SOURCE_NAME,
-      layout: {
-        'icon-image': 'current-location',
-        'icon-size': 0.85,
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': false, // default
-        'icon-anchor': 'center',
-      },
-    });
-
-    map.current.addLayer({
-      id: 'bus-marker-layer',
-      type: 'symbol',
-      source: BUS_MARKER_SOURCE_NAME,
-      layout: {
-        'icon-image': [
-          'case',
-          ['==', ['get', 'bearing'], null],
-          [
-            'match',
-            ['get', 'status'],
-            'LATE',
-            'stationary-bus-late',
-            'EARLY',
-            'stationary-bus-early',
-            /* default */ 'stationary-bus',
-          ],
-          [
-            'match',
-            ['get', 'status'],
-            'LATE',
-            'bus-marker-late',
-            'EARLY',
-            'bus-marker-early',
-            /* default */ 'bus-marker',
-          ],
-        ],
-        'icon-rotate': { type: 'identity', property: 'markerRotation' },
-        'icon-size': 0.85,
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': false, // default
-        'text-allow-overlap': false, // default
-        'text-ignore-placement': false, // default
-        'text-optional': true,
-        'icon-anchor': 'center',
-        'text-field': '{journeyPatternRef}',
-        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-        'text-size': 14,
-      },
-      paint: {
-        'text-color': '#FFFFFF',
-      },
-    });
-
-    map.current.on('click', 'bus-marker-layer', handleSymbolClick);
   };
 
   const resizeMap = (e: MouseEvent<HTMLDivElement>) => {
