@@ -2,7 +2,7 @@ import type { BusDataResponse, BusGeoJsonFeature, LatLng } from './types';
 
 export const secsToMin = (seconds: number) => Math.round(seconds / 60);
 
-export const formatVehicleRef = (vehicleRef: string = '') => {
+export const formatVehicleRef = (vehicleRef = '') => {
   const str = vehicleRef.trim().replace('_', ' ');
   return `${str.charAt(0).toUpperCase()}${str.substr(1)}`;
 };
