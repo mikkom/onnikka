@@ -1,5 +1,5 @@
 import { MouseEvent, useEffect, useRef, useState } from 'react';
-import mapboxgl, { GeoJSONSource } from 'mapbox-gl';
+import mapboxgl, { EventData, GeoJSONSource } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import {
   TopLeftMapNotification,
@@ -18,7 +18,7 @@ import {
 } from './utils';
 import type { BusDataResponse, LatLng } from './types';
 
-// eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const COLOR_THEME = {
   LATE: '#d32d7d',
   EARLY: '#009f7e',
@@ -59,6 +59,23 @@ export const Map = ({ className }: Props) => {
   const el = useRef<HTMLDivElement | null>();
   const buses = useRef<BusDataResponse>();
   const selectedVehicleRef = useRef<string | null>();
+
+  const updatePopup = ({
+    latitude,
+    longitude,
+    journeyPatternRef,
+    vehicleRef,
+    delayMin,
+    speed,
+  }: PopupData) => {
+    const vehicle = formatVehicleRef(vehicleRef);
+    popup.current?.setLngLat([longitude, latitude]).setHTML(
+      `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
+      <br />
+      ${getDelayString(delayMin)}<br />
+      Speed ${formatSpeed(speed)} km/h`
+    );
+  };
 
   useEffect(() => {
     let updateTimeoutId: NodeJS.Timer;
@@ -205,9 +222,28 @@ export const Map = ({ className }: Props) => {
       return;
     }
 
+    const handleSymbolClick = (e: EventData) => {
+      const feature = e.features[0];
+      const bus = feature.properties;
+      selectedVehicleRef.current = bus.vehicleRef;
+      popup.current?.remove();
+      popup.current = new mapboxgl.Popup({ closeButton: false });
+      updatePopup(bus);
+      if (map.current) {
+        popup.current.addTo(map.current);
+      }
+    };
+
+    if (!el.current) {
+      console.error(
+        'Something is horribly wrong, map container element is missing'
+      );
+      return;
+    }
+
     map.current = new mapboxgl.Map({
       accessToken,
-      container: el.current!,
+      container: el.current,
       style: 'mapbox://styles/mikkom/cjd8g272r21822rrwi2p4hhs4',
     });
 
@@ -309,35 +345,6 @@ export const Map = ({ className }: Props) => {
 
   const setMapContainer = (element: HTMLDivElement | null) => {
     el.current = element;
-  };
-
-  const updatePopup = ({
-    latitude,
-    longitude,
-    journeyPatternRef,
-    vehicleRef,
-    delayMin,
-    speed,
-  }: PopupData) => {
-    const vehicle = formatVehicleRef(vehicleRef);
-    popup.current?.setLngLat([longitude, latitude]).setHTML(
-      `<b>Line ${journeyPatternRef}</b>${vehicle && ` (${vehicle})`}
-      <br />
-      ${getDelayString(delayMin)}<br />
-      Speed ${formatSpeed(speed)} km/h`
-    );
-  };
-
-  const handleSymbolClick = (e: any) => {
-    const feature = e.features[0];
-    const bus = feature.properties;
-    selectedVehicleRef.current = bus.vehicleRef;
-    popup.current?.remove();
-    popup.current = new mapboxgl.Popup({ closeButton: false });
-    updatePopup(bus);
-    if (map.current) {
-      popup.current.addTo(map.current);
-    }
   };
 
   const resizeMap = (e: MouseEvent<HTMLDivElement>) => {
