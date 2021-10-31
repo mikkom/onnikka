@@ -142,13 +142,17 @@ export const Map = ({ className }: Props) => {
 
     const checkForStaleData = () => {
       if (dataTimestamp) {
-        const dataAgeMs = Date.now() - dataTimestamp;
-        const newDataAge = Math.round(dataAgeMs / 1000);
-        if (newDataAge >= STALE_DATA_THRESHOLD && dataAge !== newDataAge) {
-          setDataAge(newDataAge);
-        } else if (newDataAge < STALE_DATA_THRESHOLD && dataAge) {
-          setDataAge(null);
-        }
+        setDataAge((dataAge) => {
+          const dataAgeMs = Date.now() - dataTimestamp;
+          const newDataAge = Math.round(dataAgeMs / 1000);
+          if (newDataAge >= STALE_DATA_THRESHOLD && dataAge !== newDataAge) {
+            return newDataAge;
+          } else if (newDataAge < STALE_DATA_THRESHOLD && dataAge) {
+            return null;
+          } else {
+            return dataAge;
+          }
+        });
       }
     };
 
