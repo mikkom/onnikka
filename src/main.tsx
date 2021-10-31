@@ -1,7 +1,14 @@
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom';
+import { registerSW } from 'virtual:pwa-register';
 import './index.css';
 import App from './App';
+
+registerSW({
+  onOfflineReady() {
+    console.log('Ready for offline mode');
+  },
+});
 
 // Prevent double-tap zoom on iOS
 let lastTouchEnd = 0;

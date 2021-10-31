@@ -78,7 +78,7 @@ export const Map = ({ className }: Props) => {
   };
 
   useEffect(() => {
-    let updateTimeoutId: NodeJS.Timer;
+    let updateTimeoutId: number;
     let dataTimestamp: number;
 
     const fetchBuses = () => {
