@@ -6,7 +6,7 @@ import App from './App';
 
 registerSW({
   onOfflineReady() {
-    console.log('Ready for offline mode');
+    // Ready for offline mode
   },
 });
 
