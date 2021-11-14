@@ -15,7 +15,15 @@ import {
   secsToMin,
   convertPointToGeoJson,
   isWithinBoundingBox,
+  getAnimationFrameBuses,
 } from './utils';
+import {
+  BUS_ANIMATION_DURATION,
+  STALE_DATA_CHECK_INTERVAL,
+  STALE_DATA_THRESHOLD,
+  TAMPERE_BBOX,
+  UPDATE_INTERVAL,
+} from './constants';
 import type { BusDataResponse, LatLng } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -25,17 +33,8 @@ const COLOR_THEME = {
   ON_TIME: '#0079c2',
 };
 
-const UPDATE_INTERVAL = 2000; // ms
-const STALE_DATA_CHECK_INTERVAL = 1000; // ms
-const STALE_DATA_THRESHOLD = 10; // s
-const RELIABLE_SPEED_THRESHOLD = 1; // km/h
-
 const BUS_MARKER_SOURCE_NAME = 'bus-marker-source';
 const CURRENT_POSITION_SOURCE_NAME = 'current-location';
-
-const TAMPERE_BBOX: [number, number, number, number] = [
-  23.647643287532077, 61.37612570456474, 23.905361244117643, 61.58820555151834,
-];
 
 type PopupData = {
   latitude: number;
@@ -80,6 +79,7 @@ export const Map = ({ className }: Props) => {
   useEffect(() => {
     let updateTimeoutId: number;
     let dataTimestamp: number;
+    let animationRequestId: number | undefined;
 
     const fetchBuses = () => {
       const restartUpdateTimer = () => {
@@ -93,18 +93,17 @@ export const Map = ({ className }: Props) => {
       }
 
       const updateBuses = (newBuses: BusDataResponse) => {
-        dataTimestamp = Date.now();
-        if (buses.current) {
-          Object.keys(newBuses).forEach((key) => {
-            const currentData = newBuses[key];
-            const previousData = buses.current?.[key];
-            if (parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD) {
-              // Speed is too low, keep the old bearing if available or set as null
-              currentData.bearing = previousData && previousData.bearing;
-            }
-          });
+        // TODO: Do not animate if time difference is too large
+
+        if (animationRequestId !== undefined) {
+          cancelAnimationFrame(animationRequestId);
+          animationRequestId = undefined;
         }
+
+        dataTimestamp = Date.now();
+        const oldBuses = buses.current;
         buses.current = newBuses;
+
         const source = map.current?.getSource(
           BUS_MARKER_SOURCE_NAME
         ) as GeoJSONSource | null;
@@ -112,20 +111,43 @@ export const Map = ({ className }: Props) => {
           // Source is not ready yet
           return;
         }
-        const geoJson = convertToGeoJson(buses.current);
-        // FIXME
-        source.setData(geoJson as unknown as string);
 
-        if (selectedVehicleRef.current && popup.current) {
-          const bus = buses.current[selectedVehicleRef.current];
-          if (bus) {
-            updatePopup({
-              ...bus,
-              ...bus.location,
-              delayMin: secsToMin(bus.delay),
-            });
+        let start: number;
+        let frameCount = 0;
+        const animateMarkers = (timestamp: number) => {
+          if (start === undefined) start = timestamp;
+          const elapsed = timestamp - start;
+          const progress = elapsed / BUS_ANIMATION_DURATION;
+
+          const animationFrameBuses = oldBuses
+            ? getAnimationFrameBuses(oldBuses, newBuses, progress)
+            : newBuses;
+
+          const geoJson = convertToGeoJson(animationFrameBuses);
+          // FIXME: Remove unsafe casting
+          source.setData(geoJson as unknown as string);
+
+          if (selectedVehicleRef.current && popup.current) {
+            const bus = animationFrameBuses[selectedVehicleRef.current];
+            if (bus) {
+              updatePopup({
+                ...bus,
+                ...bus.location,
+                delayMin: secsToMin(bus.delay),
+              });
+            }
           }
-        }
+
+          frameCount++;
+          if (progress < 1) {
+            animationRequestId = requestAnimationFrame(animateMarkers);
+          } else {
+            console.log('animation fps', frameCount * 2);
+            animationRequestId = undefined;
+          }
+        };
+
+        animationRequestId = requestAnimationFrame(animateMarkers);
       };
 
       fetch(BUS_API_URL)

@@ -1,4 +1,10 @@
-import type { BusDataResponse, BusGeoJsonFeature, LatLng } from './types';
+import { RELIABLE_SPEED_THRESHOLD } from './constants';
+import type {
+  BusData,
+  BusDataResponse,
+  BusGeoJsonFeature,
+  LatLng,
+} from './types';
 
 export const secsToMin = (seconds: number) => Math.round(seconds / 60);
 
@@ -88,3 +94,65 @@ export const isWithinBoundingBox = (
   latitude <= north &&
   longitude >= west &&
   longitude <= east;
+
+const getAnimationFrameData = (
+  prev: BusData,
+  curr: BusData,
+  progress: number
+): BusData => {
+  if (progress >= 1) {
+    return curr;
+  }
+
+  // TODO: Add check if location difference is too large
+  const ret = {
+    ...curr,
+  };
+
+  if (prev.bearing && curr.bearing) {
+    let bearingDelta = (360 + curr.bearing - prev.bearing) % 360;
+    if (bearingDelta < 180) {
+      ret.bearing = (prev.bearing + progress * bearingDelta) % 360;
+    } else {
+      bearingDelta = 360 - bearingDelta;
+      ret.bearing = (prev.bearing - progress * bearingDelta) % 360;
+    }
+  }
+
+  const { latitude: prevLatitude, longitude: prevLongitude } = prev.location;
+  const { latitude, longitude } = curr.location;
+
+  ret.location = {
+    latitude: prevLatitude + progress * (latitude - prevLatitude),
+    longitude: prevLongitude + progress * (longitude - prevLongitude),
+  };
+
+  return ret;
+};
+
+export const getAnimationFrameBuses = (
+  oldBuses: BusDataResponse,
+  currBuses: BusDataResponse,
+  progress: number
+): BusDataResponse => {
+  const frameBuses: BusDataResponse = {};
+
+  Object.keys(currBuses).forEach((key) => {
+    const currentData = currBuses[key];
+    const previousData = oldBuses?.[key];
+
+    if (parseFloat(currentData.speed) < RELIABLE_SPEED_THRESHOLD) {
+      // Speed is too low, keep the old bearing if available or set as null
+      currentData.bearing = previousData && previousData.bearing;
+      // TODO: Also, filter out unrealistic bearing changes (close to 180 degrees)
+    }
+
+    const frameData = previousData
+      ? getAnimationFrameData(previousData, currentData, progress)
+      : currentData;
+
+    frameBuses[key] = frameData;
+  });
+
+  return frameBuses;
+};
