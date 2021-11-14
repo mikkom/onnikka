@@ -302,6 +302,7 @@ export const Map = ({ className }: Props) => {
         source: CURRENT_POSITION_SOURCE_NAME,
         layout: {
           'icon-image': 'current-location',
+          'icon-pitch-alignment': 'map',
           'icon-size': 0.85,
           'icon-allow-overlap': true,
           'icon-ignore-placement': false, // default
@@ -337,6 +338,7 @@ export const Map = ({ className }: Props) => {
             ],
           ],
           'icon-rotate': { type: 'identity', property: 'markerRotation' },
+          'icon-pitch-alignment': 'map',
           'icon-size': 0.85,
           'icon-allow-overlap': true,
           'icon-ignore-placement': false, // default
