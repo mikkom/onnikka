@@ -113,7 +113,6 @@ export const Map = ({ className }: Props) => {
         }
 
         let start: number;
-        let frameCount = 0;
         const animateMarkers = (timestamp: number) => {
           if (start === undefined) start = timestamp;
           const elapsed = timestamp - start;
@@ -138,13 +137,8 @@ export const Map = ({ className }: Props) => {
             }
           }
 
-          frameCount++;
-          if (progress < 1) {
-            animationRequestId = requestAnimationFrame(animateMarkers);
-          } else {
-            console.log('animation fps', frameCount * 2);
-            animationRequestId = undefined;
-          }
+          animationRequestId =
+            progress < 1 ? requestAnimationFrame(animateMarkers) : undefined;
         };
 
         animationRequestId = requestAnimationFrame(animateMarkers);
